@@ -9,6 +9,7 @@ and provides access to strategy metadata and source code.
 from __future__ import annotations
 
 import ast
+import importlib
 import importlib.util
 import shutil
 import sys
@@ -155,6 +156,8 @@ class StrategyLoader:
         module_name = file_path.stem
         if module_name in sys.modules:
             del sys.modules[module_name]
+
+        importlib.invalidate_caches()
 
         return metadata or {"name": name, "file_path": str(file_path)}
 
