@@ -527,6 +527,8 @@ class BacktestService:
         """Extract metrics, trades, positions, equity curve from completed backtest.
 
         Uses prepare.py's metric extraction pattern.
+        Falls back to computing metrics directly from analyzer raw data
+        when no statistics are registered (default in nautilus_trader v1.221.0).
         """
         analyzer = engine.portfolio.analyzer
 
@@ -534,11 +536,20 @@ class BacktestService:
         stats_pnls = analyzer.get_performance_stats_pnls() or {}
         stats_general = analyzer.get_performance_stats_general() or {}
 
-        metrics = self._build_metrics(stats_returns, stats_pnls, stats_general)
-        equity_curve = self._get_equity_curve(analyzer, stats_returns)
+        equity_curve = self._get_equity_curve(analyzer)
         drawdown_curve = self._get_drawdown_curve(equity_curve)
         trades = self._extract_fills(engine)
         positions = self._extract_positions(engine)
+
+        metrics = self._build_metrics(
+            analyzer=analyzer,
+            stats_returns=stats_returns,
+            stats_pnls=stats_pnls,
+            stats_general=stats_general,
+            equity_curve=equity_curve,
+            trades=trades,
+            positions=positions,
+        )
 
         return {
             "metrics": metrics,
@@ -551,11 +562,15 @@ class BacktestService:
 
     def _build_metrics(
         self,
+        analyzer,
         stats_returns: dict,
         stats_pnls: dict,
         stats_general: dict,
+        equity_curve: list[dict],
+        trades: list[dict],
+        positions: list[dict],
     ) -> dict:
-        """Build metrics dict from analyzer stats."""
+        """Build metrics from analyzer stats or compute from raw data."""
         metrics = {}
 
         if stats_returns:
@@ -570,53 +585,71 @@ class BacktestService:
             metrics["total_pnl"] = self._safe_float(stats_pnls.get("PnL (total)"))
 
         if stats_general:
-            metrics["win_rate"] = self._safe_float(stats_general.get("Win Rate"))
-            metrics["profit_factor"] = self._safe_float(
-                stats_general.get("Profit Factor")
-            )
-            metrics["max_drawdown"] = self._safe_float(
-                stats_general.get("Max Drawdown")
-            )
-            metrics["total_trades"] = int(stats_general.get("Total Trades", 0))
-            metrics["avg_win"] = self._safe_float(stats_general.get("Avg Win"))
-            metrics["avg_loss"] = self._safe_float(stats_general.get("Avg Loss"))
-            metrics["expectancy"] = self._safe_float(stats_general.get("Expectancy"))
+            for key, stat_name in [
+                ("win_rate", "Win Rate"),
+                ("profit_factor", "Profit Factor"),
+                ("max_drawdown", "Max Drawdown"),
+                ("avg_win", "Avg Win"),
+                ("avg_loss", "Avg Loss"),
+                ("expectancy", "Expectancy"),
+            ]:
+                val = stats_general.get(stat_name)
+                if val is not None:
+                    metrics[key] = (
+                        self._safe_float(val) if key != "total_trades" else int(val)
+                    )
+            if "total_trades" not in metrics:
+                total = stats_general.get("Total Trades")
+                if total is not None:
+                    metrics["total_trades"] = int(total)
 
-        returns = stats_returns.get("Returns (Daily)", None)
-        if returns is not None:
+        if "total_pnl" not in metrics:
             try:
-                returns_series = self._to_series(returns)
-                if len(returns_series) > 0 and not returns_series.isna().all():
-                    cum = (1 + returns_series).cumprod()
-                    peak = cum.expanding().max()
-                    dd = (cum - peak) / peak
-                    metrics["max_drawdown"] = self._safe_float(dd.min())
+                metrics["total_pnl"] = self._safe_float(analyzer.total_pnl())
+            except Exception:
+                pass
+
+        if "total_trades" not in metrics:
+            metrics["total_trades"] = len(trades)
+
+        if equity_curve:
+            try:
+                values = [p["value"] for p in equity_curve]
+                if values:
+                    peak = values[0]
+                    max_dd = 0.0
+                    for v in values:
+                        if v > peak:
+                            peak = v
+                        if peak > 0:
+                            dd = (v - peak) / peak
+                            if dd < max_dd:
+                                max_dd = dd
+                    metrics["max_drawdown"] = max_dd
             except Exception:
                 pass
 
         return metrics
 
-    def _get_equity_curve(
-        self,
-        analyzer,
-        stats_returns: dict,
-    ) -> list[dict]:
-        """Build equity curve from daily returns as list of {timestamp, value} dicts."""
-        returns = stats_returns.get("Returns (Daily)", None)
-        if returns is None:
-            return []
+    def _get_equity_curve(self, analyzer) -> list[dict]:
+        """Build equity curve from position-level returns resampled to daily frequency.
 
+        Uses analyzer.returns() directly instead of relying on registered
+        statistics (which may not exist in nautilus_trader v1.221.0).
+        """
         try:
-            returns_series = self._to_series(returns)
-            if len(returns_series) == 0:
+            returns_series = analyzer.returns()
+            if returns_series.empty:
                 return []
 
-            cum = (1 + returns_series).cumprod()
-            if cum.empty:
+            daily_returns = returns_series.resample("D").sum()
+            if daily_returns.empty:
                 return []
+
+            equity = (1 + daily_returns).cumprod()
 
             points = []
-            for ts, val in cum.items():
+            for ts, val in equity.items():
                 try:
                     ts_str = ts.isoformat() if hasattr(ts, "isoformat") else str(ts)
                 except Exception:
