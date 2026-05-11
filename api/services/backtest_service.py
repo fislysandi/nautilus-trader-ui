@@ -201,7 +201,7 @@ class BacktestService:
                 self._runs[run_id]["progress"] = 0.8
 
             self._log(run_id, "Extracting results...")
-            results = self._extract_results(engine, run_id)
+            results = self._extract_results(engine, run_id, config)
 
             if self._db:
                 await self._db.update_run_results(
@@ -523,7 +523,9 @@ class BacktestService:
         except Exception:
             return config_class(**params)
 
-    def _extract_results(self, engine: BacktestEngine, run_id: str) -> dict:
+    def _extract_results(
+        self, engine: BacktestEngine, run_id: str, config: dict
+    ) -> dict:
         """Extract metrics, trades, positions, equity curve from completed backtest.
 
         Uses prepare.py's metric extraction pattern.
@@ -536,13 +538,14 @@ class BacktestService:
         stats_pnls = analyzer.get_performance_stats_pnls() or {}
         stats_general = analyzer.get_performance_stats_general() or {}
 
-        equity_curve = self._get_equity_curve(analyzer)
-        drawdown_curve = self._get_drawdown_curve(equity_curve)
         trades = self._extract_fills(engine)
         positions = self._extract_positions(engine)
+        initial_capital = float(config.get("initial_capital", "10000"))
+        equity_curve = self._get_equity_curve(trades, initial_capital)
+        drawdown_curve = self._get_drawdown_curve(equity_curve)
 
         metrics = self._build_metrics(
-            analyzer=analyzer,
+            initial_capital=initial_capital,
             stats_returns=stats_returns,
             stats_pnls=stats_pnls,
             stats_general=stats_general,
@@ -562,7 +565,7 @@ class BacktestService:
 
     def _build_metrics(
         self,
-        analyzer,
+        initial_capital: float,
         stats_returns: dict,
         stats_pnls: dict,
         stats_general: dict,
@@ -603,14 +606,21 @@ class BacktestService:
                 if total is not None:
                     metrics["total_trades"] = int(total)
 
-        if "total_pnl" not in metrics:
-            try:
-                metrics["total_pnl"] = self._safe_float(analyzer.total_pnl())
-            except Exception:
-                pass
+        if "total_pnl" not in metrics and equity_curve:
+            final_equity = equity_curve[-1]["value"]
+            metrics["total_pnl"] = round(final_equity - initial_capital, 4)
 
         if "total_trades" not in metrics:
             metrics["total_trades"] = len(trades)
+
+        if "total_pnl" not in metrics and trades:
+            total = 0.0
+            for t in trades:
+                pnl = t.get("pnl")
+                if pnl is not None:
+                    total += float(pnl)
+            if total != 0.0:
+                metrics["total_pnl"] = round(total, 4)
 
         if equity_curve:
             try:
@@ -625,41 +635,62 @@ class BacktestService:
                             dd = (v - peak) / peak
                             if dd < max_dd:
                                 max_dd = dd
-                    metrics["max_drawdown"] = max_dd
+                    metrics["max_drawdown"] = round(max_dd, 6)
             except Exception:
                 pass
 
         return metrics
 
-    def _get_equity_curve(self, analyzer) -> list[dict]:
-        """Build equity curve from position-level returns resampled to daily frequency.
+    def _get_equity_curve(
+        self, trades: list[dict], initial_capital: float
+    ) -> list[dict]:
+        """Build equity curve from fill data by tracking cumulative cash balance.
 
-        Uses analyzer.returns() directly instead of relying on registered
-        statistics (which may not exist in nautilus_trader v1.221.0).
+        Each BUY fill reduces cash by price * size.
+        Each SELL fill increases cash by price * size.
+        Returns daily-resampled points starting from initial capital.
         """
         try:
-            returns_series = analyzer.returns()
-            if returns_series.empty:
+            if not trades:
                 return []
 
-            daily_returns = returns_series.resample("D").sum()
-            if daily_returns.empty:
-                return []
+            sorted_trades = sorted(trades, key=lambda t: t.get("entry_time", ""))
 
-            equity = (1 + daily_returns).cumprod()
-
+            cash = initial_capital
             points = []
-            for ts, val in equity.items():
-                try:
-                    ts_str = ts.isoformat() if hasattr(ts, "isoformat") else str(ts)
-                except Exception:
-                    ts_str = str(ts)
+
+            for trade in sorted_trades:
+                side = trade.get("side", "").upper()
+                price = trade.get("entry_price", 0) or 0
+                size = trade.get("size", 0) or 0
+
+                if side == "BUY" or side == "BUY_ORDER":
+                    cash -= price * size
+                else:
+                    cash += price * size
+
                 points.append(
                     {
-                        "timestamp": ts_str,
-                        "value": float(val),
+                        "timestamp": trade.get("entry_time", ""),
+                        "value": round(cash, 4),
                     }
                 )
+
+            if len(points) > 1:
+                daily = {}
+                for p in points:
+                    day = p["timestamp"][:10]
+                    daily[day] = p["value"]
+
+                days = sorted(daily.keys())
+                filled = []
+                prev_val = initial_capital
+                for day in days:
+                    val = daily[day]
+                    prev_val = val
+                    filled.append({"timestamp": day + "T00:00:00", "value": val})
+                return filled
+
             return points
         except Exception:
             return []
