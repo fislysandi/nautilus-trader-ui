@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 
 interface SettingField {
   key: string;
@@ -203,6 +203,8 @@ function Settings() {
   });
 
   const [saved, setSaved] = useState(false);
+  const [importStatus, setImportStatus] = useState<string | null>(null);
+  const importRef = useRef<HTMLInputElement>(null);
   const [activeSection, setActiveSection] = useState(0);
   const [activeSub, setActiveSub] = useState(0);
 
@@ -221,6 +223,51 @@ function Settings() {
     }
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+  };
+
+  const handleExport = () => {
+    const data: Record<string, string> = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith(STORAGE_PREFIX)) {
+        data[key] = localStorage.getItem(key) || '';
+      }
+    }
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `nt-settings-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportStatus('Importing...');
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target?.result as string);
+        let count = 0;
+        for (const [key, value] of Object.entries(data)) {
+          if (typeof value === 'string' && key.startsWith(STORAGE_PREFIX)) {
+            saveSetting(key.slice(STORAGE_PREFIX.length), value);
+            count++;
+          }
+        }
+        for (const [key] of Object.entries(values)) {
+          values[key] = loadSetting(key) || '';
+        }
+        setValues({ ...values });
+        setImportStatus(`Imported ${count} settings`);
+      } catch {
+        setImportStatus('Invalid JSON file');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   };
 
   const section = SETTINGS_DATA[activeSection]!;
@@ -302,6 +349,20 @@ function Settings() {
             )}
           </div>
         ))}
+        <div style={{ borderTop: '1px solid var(--md-sys-color-outline-variant)', margin: '12px 0', paddingTop: '12px' }}>
+          <input ref={importRef} type="file" accept=".json" style={{ display: 'none' }} onChange={handleImport} />
+          <button onClick={handleExport} style={sidebarBtnStyle}>
+            <md-icon style={{ fontSize: '16px', verticalAlign: 'middle', marginRight: '4px' }}>download</md-icon>
+            Export
+          </button>
+          <button onClick={() => importRef.current?.click()} style={sidebarBtnStyle}>
+            <md-icon style={{ fontSize: '16px', verticalAlign: 'middle', marginRight: '4px' }}>upload</md-icon>
+            Import
+          </button>
+          {importStatus && (
+            <p style={{ fontSize: '11px', color: 'var(--md-sys-color-outline)', marginTop: '4px', textAlign: 'center' }}>{importStatus}</p>
+          )}
+        </div>
       </div>
 
       <div style={{ flex: 1, maxWidth: '520px' }}>
@@ -338,6 +399,13 @@ const btnPrimary: React.CSSProperties = {
   background: 'var(--md-sys-color-primary)', color: 'var(--md-sys-color-on-primary)',
   border: 'none', borderRadius: '8px', padding: '10px 24px',
   fontSize: '14px', fontWeight: 500, cursor: 'pointer',
+};
+
+const sidebarBtnStyle: React.CSSProperties = {
+  display: 'block', width: '100%', padding: '6px 12px', marginBottom: '4px',
+  background: 'transparent', color: 'var(--md-sys-color-on-surface-variant)',
+  border: '1px solid var(--md-sys-color-outline-variant)', borderRadius: '6px',
+  fontSize: '12px', fontWeight: 500, cursor: 'pointer', textAlign: 'left',
 };
 
 export default Settings;
