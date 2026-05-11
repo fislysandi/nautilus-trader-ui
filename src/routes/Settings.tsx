@@ -9,28 +9,30 @@ interface SettingField {
   description?: string;
 }
 
-interface SettingSection {
+interface SettingSubsection {
   title: string;
   description?: string;
   fields: SettingField[];
 }
 
-const SETTINGS_SECTIONS: SettingSection[] = [
+interface SettingSection {
+  title: string;
+  description?: string;
+  fields?: SettingField[];
+  subsections?: SettingSubsection[];
+}
+
+const SETTINGS_DATA: SettingSection[] = [
   {
     title: 'Backtest Defaults',
     description: 'Default parameters for new backtest runs',
     fields: [
       {
-        key: 'capital',
-        label: 'Initial Capital',
-        type: 'text',
-        placeholder: '10000',
-        description: 'Default starting capital for backtests',
+        key: 'capital', label: 'Initial Capital', type: 'text',
+        placeholder: '10000', description: 'Default starting capital',
       },
       {
-        key: 'commission',
-        label: 'Commission Model',
-        type: 'select',
+        key: 'commission', label: 'Commission Model', type: 'select',
         options: [
           { value: '0', label: 'No commission' },
           { value: '0.001', label: '0.1% per trade' },
@@ -39,9 +41,7 @@ const SETTINGS_SECTIONS: SettingSection[] = [
         description: 'Trading fees applied per fill',
       },
       {
-        key: 'slippage',
-        label: 'Slippage Model',
-        type: 'select',
+        key: 'slippage', label: 'Slippage Model', type: 'select',
         options: [
           { value: '0', label: 'No slippage' },
           { value: '0.001', label: '0.1% slippage' },
@@ -56,102 +56,109 @@ const SETTINGS_SECTIONS: SettingSection[] = [
     description: 'Market data and strategy file paths',
     fields: [
       {
-        key: 'dataPath',
-        label: 'Data Directory',
-        type: 'text',
-        placeholder: './data',
-        description: 'Path to market data files (Parquet, CSV)',
+        key: 'dataPath', label: 'Data Directory', type: 'text',
+        placeholder: './data', description: 'Path to market data files',
       },
       {
-        key: 'strategiesPath',
-        label: 'Strategies Directory',
-        type: 'text',
-        placeholder: './strategies',
-        description: 'Directory containing strategy .py files',
+        key: 'strategiesPath', label: 'Strategies Directory', type: 'text',
+        placeholder: './strategies', description: 'Directory containing .py strategies',
       },
     ],
   },
   {
-    title: 'Live Trading',
-    description: 'Exchange API credentials and risk limits',
-    fields: [
+    title: 'Exchanges',
+    description: 'Exchange API credentials and trading configuration',
+    subsections: [
       {
-        key: 'polymarketKey',
-        label: 'Polymarket API Key',
-        type: 'password',
-        placeholder: 'Enter your API key',
-        description: 'API key for Polymarket data and execution',
+        title: 'Polymarket',
+        description: 'Polymarket prediction market exchange',
+        fields: [
+          {
+            key: 'polymarketKey', label: 'API Key', type: 'password',
+            placeholder: 'Enter API key', description: 'Polymarket API key',
+          },
+          {
+            key: 'polymarketSecret', label: 'Secret', type: 'password',
+            placeholder: 'Enter secret', description: 'Private key for signing',
+          },
+        ],
       },
       {
-        key: 'polymarketSecret',
-        label: 'Polymarket Secret',
-        type: 'password',
-        placeholder: 'Enter your secret key',
-        description: 'Private key for order signing',
+        title: 'Bybit',
+        description: 'Bybit cryptocurrency derivatives exchange',
+        fields: [
+          {
+            key: 'bybitApiKey', label: 'API Key', type: 'password',
+            placeholder: 'Enter Bybit API key', description: 'API key with trading permissions',
+          },
+          {
+            key: 'bybitSecret', label: 'Secret', type: 'password',
+            placeholder: 'Enter Bybit secret', description: 'API secret for request signing',
+          },
+          {
+            key: 'bybitEnvironment', label: 'Environment', type: 'select',
+            options: [
+              { value: 'MAINNET', label: 'Mainnet (Production)' },
+              { value: 'TESTNET', label: 'Testnet (Paper Trading)' },
+              { value: 'DEMO', label: 'Demo' },
+            ],
+            description: 'Bybit environment',
+          },
+          {
+            key: 'bybitProductType', label: 'Product Type', type: 'select',
+            options: [
+              { value: 'LINEAR', label: 'Linear (USDT Perpetuals)' },
+              { value: 'SPOT', label: 'Spot' },
+              { value: 'INVERSE', label: 'Inverse (Coin-M)' },
+              { value: 'OPTION', label: 'Options' },
+            ],
+            description: 'Derivatives product type',
+          },
+          {
+            key: 'bybitLeverage', label: 'Max Leverage', type: 'number',
+            placeholder: '10', description: 'Maximum leverage for futures',
+          },
+        ],
       },
       {
-        key: 'maxPositionSize',
-        label: 'Max Position Size',
-        type: 'number',
-        placeholder: '1000',
-        description: 'Maximum USD value per position',
-      },
-      {
-        key: 'maxDrawdown',
-        label: 'Max Drawdown %',
-        type: 'number',
-        placeholder: '20',
-        description: 'Auto-stop trading if drawdown exceeds this %',
+        title: 'Hyperliquid',
+        description: 'Hyperliquid spot and perpetuals DEX',
+        fields: [
+          {
+            key: 'hyperliquidWallet', label: 'Wallet Address', type: 'text',
+            placeholder: '0x...', description: 'EVM wallet address for Hyperliquid',
+          },
+          {
+            key: 'hyperliquidPrivateKey', label: 'Private Key', type: 'password',
+            placeholder: 'Enter private key', description: 'Wallet private key for signing',
+          },
+          {
+            key: 'hyperliquidTestnet', label: 'Network', type: 'select',
+            options: [
+              { value: 'mainnet', label: 'Mainnet' },
+              { value: 'testnet', label: 'Testnet (Sepolia)' },
+            ],
+            description: 'Hyperliquid network',
+          },
+        ],
       },
     ],
   },
   {
-    title: 'Bybit',
-    description: 'Bybit exchange API credentials and trading configuration',
+    title: 'Risk Limits',
+    description: 'Global risk management parameters',
     fields: [
       {
-        key: 'bybitApiKey',
-        label: 'Bybit API Key',
-        type: 'password',
-        placeholder: 'Enter your Bybit API key',
-        description: 'API key with trading and data permissions',
+        key: 'maxPositionSize', label: 'Max Position Size (USD)', type: 'number',
+        placeholder: '1000', description: 'Maximum USD value per position',
       },
       {
-        key: 'bybitSecret',
-        label: 'Bybit Secret',
-        type: 'password',
-        placeholder: 'Enter your Bybit secret key',
-        description: 'API secret for request signing',
+        key: 'maxDrawdown', label: 'Max Drawdown %', type: 'number',
+        placeholder: '20', description: 'Auto-stop if drawdown exceeds this',
       },
       {
-        key: 'bybitEnvironment',
-        label: 'Environment',
-        type: 'select',
-        options: [
-          { value: 'MAINNET', label: 'Mainnet (Production)' },
-          { value: 'TESTNET', label: 'Testnet (Paper Trading)' },
-          { value: 'DEMO', label: 'Demo' },
-        ],
-        description: 'Bybit environment — use Testnet for paper trading',
-      },
-      {
-        key: 'bybitProductType',
-        label: 'Product Type',
-        type: 'select',
-        options: [
-          { value: 'LINEAR', label: 'Linear (USDT Perpetuals)' },
-          { value: 'SPOT', label: 'Spot' },
-          { value: 'INVERSE', label: 'Inverse (Coin-M)' },
-          { value: 'OPTION', label: 'Options' },
-        ],
-        description: 'Derivatives product type to trade',
-      },
-      {
-        key: 'bybitMaxLeverage',
-        label: 'Max Leverage',
-        type: 'number',
-        placeholder: '10',
-        description: 'Maximum leverage for futures positions',
+        key: 'maxLeverage', label: 'Global Max Leverage', type: 'number',
+        placeholder: '10', description: 'Global leverage limit across all exchanges',
       },
     ],
   },
@@ -178,15 +185,31 @@ function saveSetting(key: string, value: string): void {
 function Settings() {
   const [values, setValues] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
-    for (const section of SETTINGS_SECTIONS) {
-      for (const field of section.fields) {
-        initial[field.key] = loadSetting(field.key) || field.placeholder || '';
+    for (const section of SETTINGS_DATA) {
+      if (section.fields) {
+        for (const field of section.fields) {
+          initial[field.key] = loadSetting(field.key) || field.placeholder || '';
+        }
+      }
+      if (section.subsections) {
+        for (const sub of section.subsections) {
+          for (const field of sub.fields) {
+            initial[field.key] = loadSetting(field.key) || field.placeholder || '';
+          }
+        }
       }
     }
     return initial;
   });
+
   const [saved, setSaved] = useState(false);
   const [activeSection, setActiveSection] = useState(0);
+  const [activeSub, setActiveSub] = useState(0);
+
+  const handleSectionClick = (i: number) => {
+    setActiveSection(i);
+    setActiveSub(0);
+  };
 
   const handleChange = (key: string, value: string) => {
     setValues((prev) => ({ ...prev, [key]: value }));
@@ -199,6 +222,11 @@ function Settings() {
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
+
+  const section = SETTINGS_DATA[activeSection]!;
+  const fields = section.subsections
+    ? section.subsections[activeSub]!.fields
+    : section.fields || [];
 
   const renderField = (field: SettingField) => {
     const sharedStyle: React.CSSProperties = {
@@ -216,28 +244,20 @@ function Settings() {
           {field.label}
         </label>
         {field.description && (
-          <p style={{ fontSize: '11px', color: 'var(--md-sys-color-outline)', marginBottom: '4px', marginTop: 0 }}>
+          <p style={{ fontSize: '11px', color: 'var(--md-sys-color-outline)', margin: '0 0 4px' }}>
             {field.description}
           </p>
         )}
         {field.type === 'select' ? (
-          <select
-            value={values[field.key] || ''}
-            onChange={(e) => handleChange(field.key, e.target.value)}
-            style={sharedStyle}
-          >
+          <select value={values[field.key] || ''} onChange={(e) => handleChange(field.key, e.target.value)} style={sharedStyle}>
             {field.options?.map((opt) => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
         ) : (
-          <input
-            type={field.type}
-            value={values[field.key] || ''}
+          <input type={field.type} value={values[field.key] || ''}
             onChange={(e) => handleChange(field.key, e.target.value)}
-            placeholder={field.placeholder}
-            style={sharedStyle}
-          />
+            placeholder={field.placeholder} style={sharedStyle} />
         )}
       </div>
     );
@@ -245,50 +265,69 @@ function Settings() {
 
   return (
     <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start' }}>
-      {/* Section nav */}
       <div className="chart-container" style={{ width: '200px', flexShrink: 0 }}>
         <h2 style={{ fontSize: '14px', fontWeight: 500, marginBottom: '8px', color: 'var(--md-sys-color-on-surface-variant)' }}>
-          Sections
+          Settings
         </h2>
-        {SETTINGS_SECTIONS.map((section, i) => (
-          <div
-            key={section.title}
-            onClick={() => setActiveSection(i)}
-            style={{
-              padding: '8px 12px',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              marginBottom: '2px',
-              background: i === activeSection ? 'var(--md-sys-color-secondary-container)' : 'transparent',
-              color: i === activeSection ? 'var(--md-sys-color-on-secondary-container)' : 'var(--md-sys-color-on-surface-variant)',
-              fontSize: '13px',
-              fontWeight: i === activeSection ? 500 : 400,
-            }}
-          >
-            {section.title}
+        {SETTINGS_DATA.map((sec, i) => (
+          <div key={sec.title} style={{ marginBottom: sec.subsections ? '8px' : '2px' }}>
+            <div
+              onClick={() => handleSectionClick(i)}
+              style={{
+                padding: '8px 12px', borderRadius: '8px', cursor: 'pointer',
+                background: i === activeSection ? 'var(--md-sys-color-secondary-container)' : 'transparent',
+                color: i === activeSection ? 'var(--md-sys-color-on-secondary-container)' : 'var(--md-sys-color-on-surface-variant)',
+                fontSize: '13px', fontWeight: i === activeSection ? 500 : 400,
+              }}
+            >
+              {sec.title}
+            </div>
+            {sec.subsections && i === activeSection && (
+              <div style={{ marginLeft: '8px', marginTop: '4px' }}>
+                {sec.subsections.map((sub, j) => (
+                  <div
+                    key={sub.title}
+                    onClick={() => setActiveSub(j)}
+                    style={{
+                      padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', marginBottom: '1px',
+                      background: j === activeSub ? 'var(--md-sys-color-primary-container)' : 'transparent',
+                      color: j === activeSub ? 'var(--md-sys-color-on-primary-container)' : 'var(--md-sys-color-outline)',
+                      fontSize: '12px',
+                    }}
+                  >
+                    {sub.title}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ))}
       </div>
 
-      {/* Settings form */}
       <div style={{ flex: 1, maxWidth: '520px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h1 style={{ fontSize: '24px', fontWeight: 600, margin: 0 }}>
-          {SETTINGS_SECTIONS[activeSection]!.title}
-          </h1>
+          <div>
+            <h1 style={{ fontSize: '24px', fontWeight: 600, margin: 0 }}>
+              {section.subsections ? section.subsections[activeSub]!.title : section.title}
+            </h1>
+            {section.subsections
+              ? <p style={{ fontSize: '12px', color: 'var(--md-sys-color-outline)', margin: '2px 0 0' }}>{section.title}</p>
+              : section.description && <p style={{ fontSize: '12px', color: 'var(--md-sys-color-outline)', margin: '2px 0 0' }}>{section.description}</p>
+            }
+          </div>
           <button onClick={handleSave} style={btnPrimary}>
             {saved ? 'Saved' : 'Save'}
           </button>
         </div>
 
-        {SETTINGS_SECTIONS[activeSection]!.description && (
-          <p style={{ fontSize: '13px', color: 'var(--md-sys-color-on-surface-variant)', marginBottom: '20px', marginTop: 0 }}>
-            {SETTINGS_SECTIONS[activeSection]!.description}
+        {section.subsections && section.subsections[activeSub]!.description && (
+          <p style={{ fontSize: '13px', color: 'var(--md-sys-color-on-surface-variant)', marginBottom: '16px' }}>
+            {section.subsections[activeSub]!.description}
           </p>
         )}
 
         <div className="chart-container">
-          {SETTINGS_SECTIONS[activeSection]!.fields.map(renderField)}
+          {fields.map(renderField)}
         </div>
       </div>
     </div>
