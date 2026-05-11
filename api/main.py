@@ -9,13 +9,23 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from api.database import init_db, close_db
 from api.routes import backtest, data, live, strategies
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
+    # Startup
+    await init_db()
+    from api.db_service import DbService
+    from api.services.backtest_service import BacktestService
+
+    db = DbService()
+    backtest.service = BacktestService(strategies_dir="strategies", db_service=db)
     yield
+    # Shutdown
+    await close_db()
 
 
 app = FastAPI(
