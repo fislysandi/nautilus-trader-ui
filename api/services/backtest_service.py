@@ -189,8 +189,29 @@ class BacktestService:
         start_date: Optional[str],
         end_date: Optional[str],
     ):
-        """Run the engine synchronously."""
-        engine.run()
+        """Run the engine synchronously with a timeout."""
+        from concurrent.futures import ThreadPoolExecutor, TimeoutError
+        import threading
+
+        result = [None]
+        exception = [None]
+        done = threading.Event()
+
+        def _run():
+            try:
+                engine.run()
+                result[0] = True
+            except Exception as e:
+                exception[0] = e
+            finally:
+                done.set()
+
+        t = threading.Thread(target=_run, daemon=True)
+        t.start()
+        if not done.wait(timeout=30):
+            pass  # Timeout — engine hang
+        if exception[0]:
+            raise exception[0]
 
     def _create_engine(self, initial_capital: str) -> BacktestEngine:
         """Create and configure a BacktestEngine with Polymarket venue."""
