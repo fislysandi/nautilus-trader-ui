@@ -177,7 +177,11 @@ class BacktestService:
             self._log(run_id, f"Backtest complete. Sharpe: {sharpe}, Trades: {trades}")
 
         except Exception as e:
+            tb = traceback.format_exc()
             self._log(run_id, f"ERROR: {e}")
+            for line in tb.split("\n"):
+                if line.strip():
+                    self._log(run_id, line.strip())
             self._runs[run_id]["status"] = "failed"
             self._runs[run_id]["error"] = str(e)
             self._runs[run_id]["progress"] = 0.0
