@@ -136,7 +136,8 @@ export const useTradingStore = create<TradingStore>((set) => ({
               ...state.backtestRuns,
               [runId]: { ...state.backtestRuns[runId], status },
             },
-          }));
+}) as TradingStore);
+
           if (onProgress) onProgress(status.progress);
 
           if (status.status === 'completed') {
@@ -147,7 +148,7 @@ export const useTradingStore = create<TradingStore>((set) => ({
                 ...state.backtestRuns,
                 [runId]: { ...state.backtestRuns[runId], results, trades },
               },
-            }));
+}));
             resolve(results);
           } else if (status.status === 'failed') {
             reject(new Error(status.error || 'Backtest failed'));
@@ -246,5 +247,16 @@ export const useTradingStore = create<TradingStore>((set) => ({
       liveLoading: false,
     }),
 }));
+
+// Hydrate from localStorage on load
+const saved = localStorage.getItem('nt-store');
+if (saved) {
+  try { useTradingStore.setState(JSON.parse(saved)); } catch {}
+}
+
+// Persist to localStorage on every change
+useTradingStore.subscribe((state) => {
+  try { localStorage.setItem('nt-store', JSON.stringify(state)); } catch {}
+});
 
 export default useTradingStore;
