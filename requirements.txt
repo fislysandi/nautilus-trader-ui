@@ -4,3 +4,5 @@ uvicorn[standard]==0.46.0
 pandas==2.3.3
 pydantic==2.13.4
 python-multipart==0.0.28
+sqlalchemy[asyncio]>=2.0
+aiosqlite>=0.20
