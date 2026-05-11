@@ -162,6 +162,20 @@ const SETTINGS_DATA: SettingSection[] = [
       },
     ],
   },
+  {
+    title: 'Data Management',
+    description: 'Export your settings as a JSON file to back them up, or import a previously exported file to restore them.',
+    fields: [
+      {
+        key: '_export', label: '', type: 'text',
+        description: 'Download all settings as a JSON file for backup or transfer.',
+      },
+      {
+        key: '_import', label: '', type: 'text',
+        description: 'Restore settings from a previously exported JSON file.',
+      },
+    ],
+  },
 ];
 
 const STORAGE_PREFIX = 'nt_';
@@ -287,9 +301,25 @@ function Settings() {
 
     return (
       <div key={field.key} style={{ marginBottom: '16px' }}>
-        <label className="metric-label" style={{ display: 'block', marginBottom: '2px' }}>
-          {field.label}
-        </label>
+        {field.key === '_export' ? (
+          <button onClick={handleExport} style={actionBtnStyle}>
+            Export All Settings
+          </button>
+        ) : field.key === '_import' ? (
+          <div>
+            <input ref={importRef} type="file" accept=".json" style={{ display: 'none' }} onChange={handleImport} />
+            <button onClick={() => importRef.current?.click()} style={actionBtnStyle}>
+              Import Settings from File
+            </button>
+            {importStatus && (
+              <p style={{ fontSize: '12px', color: 'var(--md-sys-color-outline)', marginTop: '6px' }}>{importStatus}</p>
+            )}
+          </div>
+        ) : (
+          <>
+            <label className="metric-label" style={{ display: 'block', marginBottom: '2px' }}>
+              {field.label}
+            </label>
         {field.description && (
           <p style={{ fontSize: '11px', color: 'var(--md-sys-color-outline)', margin: '0 0 4px' }}>
             {field.description}
@@ -305,6 +335,8 @@ function Settings() {
           <input type={field.type} value={values[field.key] || ''}
             onChange={(e) => handleChange(field.key, e.target.value)}
             placeholder={field.placeholder} style={sharedStyle} />
+        )}
+          </>
         )}
       </div>
     );
@@ -349,20 +381,6 @@ function Settings() {
             )}
           </div>
         ))}
-        <div style={{ borderTop: '1px solid var(--md-sys-color-outline-variant)', margin: '12px 0', paddingTop: '12px' }}>
-          <input ref={importRef} type="file" accept=".json" style={{ display: 'none' }} onChange={handleImport} />
-          <button onClick={handleExport} style={sidebarBtnStyle}>
-            <md-icon style={{ fontSize: '16px', verticalAlign: 'middle', marginRight: '4px' }}>download</md-icon>
-            Export
-          </button>
-          <button onClick={() => importRef.current?.click()} style={sidebarBtnStyle}>
-            <md-icon style={{ fontSize: '16px', verticalAlign: 'middle', marginRight: '4px' }}>upload</md-icon>
-            Import
-          </button>
-          {importStatus && (
-            <p style={{ fontSize: '11px', color: 'var(--md-sys-color-outline)', marginTop: '4px', textAlign: 'center' }}>{importStatus}</p>
-          )}
-        </div>
       </div>
 
       <div style={{ flex: 1, maxWidth: '520px' }}>
@@ -406,6 +424,14 @@ const sidebarBtnStyle: React.CSSProperties = {
   background: 'transparent', color: 'var(--md-sys-color-on-surface-variant)',
   border: '1px solid var(--md-sys-color-outline-variant)', borderRadius: '6px',
   fontSize: '12px', fontWeight: 500, cursor: 'pointer', textAlign: 'left',
+};
+
+const actionBtnStyle: React.CSSProperties = {
+  display: 'block', width: '100%', padding: '12px 16px',
+  background: 'var(--md-sys-color-surface-container)',
+  color: 'var(--md-sys-color-on-surface)',
+  border: '1px dashed var(--md-sys-color-outline)', borderRadius: '8px',
+  fontSize: '14px', fontWeight: 500, cursor: 'pointer', textAlign: 'center',
 };
 
 export default Settings;
