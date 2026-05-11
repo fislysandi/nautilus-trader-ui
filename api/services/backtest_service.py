@@ -312,11 +312,40 @@ class BacktestService:
             from nautilus_trader.test_kit.providers import TestInstrumentProvider
             from nautilus_trader.model.data import TradeTick
             from nautilus_trader.model.identifiers import TradeId
-            from nautilus_trader.model.enums import OrderSide
+            from nautilus_trader.model.enums import OrderSide, AssetClass
             from nautilus_trader.model.objects import Price, Quantity
+            from nautilus_trader.model.instruments import BinaryOption
+            from nautilus_trader.model.identifiers import Symbol, Venue
             import random
+            import pandas as pd
 
-            instrument = TestInstrumentProvider.binary_option()
+            # Create instrument matching the strategy's instrument_id
+            strategy_inst_id = InstrumentId.from_str(instrument_id_str)
+            symbol = Symbol(
+                strategy_inst_id.symbol.value
+                if hasattr(strategy_inst_id.symbol, "value")
+                else str(strategy_inst_id.symbol)
+            )
+            instrument = BinaryOption(
+                instrument_id=strategy_inst_id,
+                raw_symbol=symbol,
+                outcome="Yes",
+                description="Synthetic market for backtesting",
+                asset_class=AssetClass.ALTERNATIVE,
+                currency=Currency.from_str("USDC"),
+                price_precision=4,
+                price_increment=Price(1, 4),
+                size_precision=0,
+                size_increment=Quantity(1, 0),
+                activation_ns=0,
+                expiration_ns=pd.Timestamp("2025-12-31", tz="UTC").value,
+                max_quantity=None,
+                min_quantity=Quantity(1, 0),
+                maker_fee=Decimal("0"),
+                taker_fee=Decimal("0"),
+                ts_event=0,
+                ts_init=0,
+            )
             engine.add_instrument(instrument)
 
             base_ns = 1700000000000000000
