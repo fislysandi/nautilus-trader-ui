@@ -11,6 +11,7 @@ import asyncio
 import contextlib
 import inspect
 import io
+import traceback
 import uuid
 from datetime import datetime
 from decimal import Decimal
@@ -42,6 +43,8 @@ class BacktestService:
         self._runs: dict[str, dict] = {}
         self._sweeps: dict[str, dict] = {}
         self._logs: dict[str, list[str]] = {}  # run_id → log lines
+
+    MAX_RUNS = 100
 
     def _log(self, run_id: str, message: str):
         """Append a timestamped log line to the run's log buffer."""
@@ -125,6 +128,7 @@ class BacktestService:
             instrument = self._load_data(
                 engine,
                 config.get("instrument_id", ""),
+                run_id,
             )
             if instrument is None:
                 raise ValueError(
@@ -167,11 +171,14 @@ class BacktestService:
             results = self._extract_results(engine, run_id)
             self._runs[run_id].update(results)
             self._runs[run_id]["status"] = "completed"
+            self._runs[run_id]["completed_at"] = datetime.now().isoformat()
             self._runs[run_id]["progress"] = 1.0
 
             sharpe = results.get("metrics", {}).get("sharpe_ratio", "N/A")
             trades = len(results.get("trades", []))
             self._log(run_id, f"Backtest complete. Sharpe: {sharpe}, Trades: {trades}")
+
+            self._prune_old_runs()
 
         except Exception as e:
             tb = traceback.format_exc()
@@ -215,6 +222,7 @@ class BacktestService:
         self,
         engine: BacktestEngine,
         instrument_id_str: str,
+        run_id: str,
     ) -> Optional[Instrument]:
         """Load instrument and data for the backtest.
 
@@ -297,13 +305,10 @@ class BacktestService:
             pass
 
         # Fallback: generate synthetic trade data so backtests actually run
-        try:
-            self._log(
-                run_id,
-                f"No real data found for {instrument_id_str}, generating synthetic data...",
-            )
-        except (NameError, AttributeError):
-            pass
+        self._log(
+            run_id,
+            f"No real data found for {instrument_id_str}, generating synthetic data...",
+        )
         try:
             from nautilus_trader.model.data import TradeTick
             from nautilus_trader.model.identifiers import TradeId
@@ -348,10 +353,7 @@ class BacktestService:
             )
             return instrument
         except Exception:
-            try:
-                self._log(run_id, "Failed to generate synthetic data")
-            except (NameError, AttributeError):
-                pass
+            self._log(run_id, "Failed to generate synthetic data")
             return None
 
     def _load_strategy(self, config: dict) -> tuple[Optional[type], Optional[type]]:
@@ -676,6 +678,24 @@ class BacktestService:
         """Delete backtest results from memory."""
         if run_id in self._runs:
             del self._runs[run_id]
+        if run_id in self._logs:
+            del self._logs[run_id]
+
+    def _prune_old_runs(self):
+        """Remove oldest completed runs if over MAX_RUNS limit."""
+        completed = sorted(
+            [
+                (rid, r)
+                for rid, r in self._runs.items()
+                if r.get("status") == "completed"
+            ],
+            key=lambda x: x[1].get("completed_at", ""),
+        )
+        while len(self._runs) - len(completed) + len(completed) > self.MAX_RUNS:
+            if not completed:
+                break
+            rid, _ = completed.pop(0)
+            self.delete_run(rid)
 
     async def run_sweep(self, sweep_config: dict) -> str:
         """Run parameter sweep.
