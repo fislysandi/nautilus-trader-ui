@@ -4,14 +4,59 @@ import DataTable from '../components/DataTable';
 import StatusBadge from '../components/StatusBadge';
 
 const ACCOUNTS = [
+  { id: 'all', label: 'All Accounts', icon: '📋' },
   { id: 'virtual', label: 'Virtual / Paper', icon: '🛡️' },
   { id: 'polymarket', label: 'Polymarket', icon: '🔮' },
   { id: 'bybit', label: 'Bybit', icon: '📊' },
   { id: 'hyperliquid', label: 'Hyperliquid', icon: '⚡' },
 ];
 
+// Mock account data keyed by account id
+const MOCK_ACCOUNT_DATA: Record<string, {
+  balance: { total: number; available: number; margin: number };
+  positions: Array<Record<string, unknown>>;
+  orders: Array<Record<string, unknown>>;
+}> = {
+  virtual: {
+    balance: { total: 1245.50, available: 1180.00, margin: 5.26 },
+    positions: [
+      { account: 'Virtual', instrument_id: 'BTC-15M-UP.POLYMARKET', side: 'BUY', quantity: 5, entry_price: 0.45, current_price: 0.52, unrealized_pnl: 0.35 },
+      { account: 'Virtual', instrument_id: 'ETH-1H-UP.POLYMARKET', side: 'BUY', quantity: 10, entry_price: 0.38, current_price: 0.36, unrealized_pnl: -0.20 },
+    ],
+    orders: [
+      { account: 'Virtual', instrument_id: 'BTC-15M-UP.POLYMARKET', side: 'BUY', order_type: 'LIMIT', price: 0.42, quantity: 3, status: 'OPEN' },
+    ],
+  },
+  polymarket: {
+    balance: { total: 8500.00, available: 7200.00, margin: 15.29 },
+    positions: [
+      { account: 'Polymarket', instrument_id: 'SOL-1H-UP.POLYMARKET', side: 'BUY', quantity: 20, entry_price: 0.62, current_price: 0.71, unrealized_pnl: 1.80 },
+    ],
+    orders: [],
+  },
+  bybit: {
+    balance: { total: 15200.00, available: 14800.00, margin: 2.63 },
+    positions: [
+      { account: 'Bybit', instrument_id: 'BTC-USDT.BYBIT', side: 'BUY', quantity: 0.1, entry_price: 61200, current_price: 61850, unrealized_pnl: 65.00 },
+      { account: 'Bybit', instrument_id: 'ETH-USDT.BYBIT', side: 'SELL', quantity: 1.5, entry_price: 3450, current_price: 3410, unrealized_pnl: 60.00 },
+    ],
+    orders: [
+      { account: 'Bybit', instrument_id: 'BTC-USDT.BYBIT', side: 'SELL', order_type: 'LIMIT', price: 62500, quantity: 0.05, status: 'OPEN' },
+    ],
+  },
+  hyperliquid: {
+    balance: { total: 3200.00, available: 3100.00, margin: 3.12 },
+    positions: [
+      { account: 'Hyperliquid', instrument_id: 'SOL-PERP.HL', side: 'LONG', quantity: 25, entry_price: 145.20, current_price: 148.80, unrealized_pnl: 90.00 },
+    ],
+    orders: [
+      { account: 'Hyperliquid', instrument_id: 'SOL-PERP.HL', side: 'SHORT', order_type: 'LIMIT', price: 155.00, quantity: 10, status: 'OPEN' },
+    ],
+  },
+};
+
 function LiveMonitor() {
-  const [selectedAccount, setSelectedAccount] = useState('virtual');
+  const [selectedAccount, setSelectedAccount] = useState('all');
   const {
     live,
     fetchLiveStatus, fetchLivePositions, fetchLiveOrders, fetchLiveAccount,
@@ -32,6 +77,20 @@ function LiveMonitor() {
 
   const { status, positions, orders, account } = live;
   const isRunning = status?.status === 'running';
+  const isAll = selectedAccount === 'all';
+
+  // Compute display data based on selection
+  const displayAccounts = isAll
+    ? Object.keys(MOCK_ACCOUNT_DATA)
+    : [selectedAccount];
+
+  const displayPositions = isAll
+    ? Object.values(MOCK_ACCOUNT_DATA).flatMap(a => a.positions)
+    : (MOCK_ACCOUNT_DATA[selectedAccount]?.positions || positions || []);
+
+  const displayOrders = isAll
+    ? Object.values(MOCK_ACCOUNT_DATA).flatMap(a => a.orders)
+    : (MOCK_ACCOUNT_DATA[selectedAccount]?.orders || orders || []);
 
   const handleKill = () => {
     if (window.confirm('KILL SWITCH: Cancel ALL orders and close ALL positions. Are you sure?')) {
@@ -47,6 +106,7 @@ function LiveMonitor() {
   };
 
   const posColumns = [
+    ...(isAll ? [{ key: 'account', label: 'Account', sortable: true, width: '90px' }] : []),
     { key: 'instrument_id', label: 'Instrument', sortable: true },
     { key: 'side', label: 'Side', sortable: true },
     { key: 'quantity', label: 'Qty', sortable: true, numeric: true },
@@ -65,6 +125,7 @@ function LiveMonitor() {
   ];
 
   const orderColumns = [
+    ...(isAll ? [{ key: 'account', label: 'Account', sortable: true, width: '90px' }] : []),
     { key: 'instrument_id', label: 'Instrument', sortable: true },
     { key: 'side', label: 'Side', sortable: true },
     { key: 'order_type', label: 'Type', sortable: true },
@@ -135,17 +196,41 @@ function LiveMonitor() {
         </div>
       </div>
 
-      {account && (
+      {/* Account Panel — single or all accounts */}
+      {isAll ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', marginBottom: '16px' }}>
+          {displayAccounts.map((accId) => {
+            const data = MOCK_ACCOUNT_DATA[accId];
+            const accInfo = ACCOUNTS.find(a => a.id === accId);
+            if (!data) return null;
+            return (
+              <div key={accId} className="chart-container">
+                <h3 style={{ fontSize: '14px', fontWeight: 500, marginBottom: '8px' }}>
+                  {accInfo?.icon} {accInfo?.label}
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div><span className="metric-label">Balance</span><div style={{ fontSize: '18px', fontWeight: 600 }}>${data.balance.total.toFixed(2)}</div></div>
+                  <div><span className="metric-label">Available</span><div style={{ fontSize: '18px', fontWeight: 600 }}>${data.balance.available.toFixed(2)}</div></div>
+                  <div><span className="metric-label">Margin</span><div style={{ fontSize: '18px', fontWeight: 600, color: data.balance.margin > 10 ? 'var(--semantic-danger)' : 'var(--semantic-success)' }}>{data.balance.margin}%</div></div>
+                  <div><span className="metric-label">Positions</span><div style={{ fontSize: '18px', fontWeight: 600 }}>{data.positions.length}</div></div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : account ? (
         <div className="chart-container" style={{ marginBottom: '16px' }}>
           <h2 style={{ fontSize: '16px', fontWeight: 500, marginBottom: '12px' }}>Account</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
             <div><span className="metric-label">Total Balance</span><div style={{ fontSize: '20px', fontWeight: 600 }}>${account.total_balance.toFixed(2)}</div></div>
             <div><span className="metric-label">Available</span><div style={{ fontSize: '20px', fontWeight: 600 }}>${account.available_balance.toFixed(2)}</div></div>
             <div><span className="metric-label">In Use</span><div style={{ fontSize: '20px', fontWeight: 600 }}>${account.in_use.toFixed(2)}</div></div>
-            <div><span className="metric-label">Margin Usage</span><div style={{ fontSize: '20px', fontWeight: 600, color: account.margin_usage_pct > 10 ? 'var(--semantic-danger)' : 'var(--semantic-success)' }}>{account.margin_usage_pct.toFixed(1)}%</div></div>
+            <div><span className="metric-label" style={{ color: account.margin_usage_pct > 10 ? 'var(--semantic-danger)' : 'var(--semantic-success)' }}>Margin Usage</span>
+              <div style={{ fontSize: '20px', fontWeight: 600, color: account.margin_usage_pct > 10 ? 'var(--semantic-danger)' : 'var(--semantic-success)' }}>{account.margin_usage_pct.toFixed(1)}%</div>
+            </div>
           </div>
         </div>
-      )}
+      ) : null}
 
       <div className="chart-container" style={{ marginBottom: '16px' }}>
         <h2 style={{ fontSize: '16px', fontWeight: 500, marginBottom: '12px' }}>Positions</h2>
