@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import Editor from '@monaco-editor/react';
 import { useTradingStore } from '../stores/trading';
 import * as api from '../api/client';
 
@@ -17,6 +18,42 @@ function Strategies() {
       api.getStrategySource(selected).then(r => setSource(r.source)).catch(() => setSource(null));
     }
   }, [selected]);
+
+  const [editing, setEditing] = useState(false);
+  const [editSource, setEditSource] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const handleStartEditing = () => {
+    if (source) {
+      setEditSource(source);
+      setEditing(true);
+      setSaveError(null);
+    }
+  };
+
+  const handleCancelEditing = () => {
+    setEditing(false);
+    setEditSource(null);
+    setSaveError(null);
+  };
+
+  const handleSave = async () => {
+    if (!selected || !editSource) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await api.updateStrategySource(selected, editSource);
+      setSource(editSource);
+      setEditing(false);
+      const paramsRes = await api.getStrategyParams(selected);
+      if (paramsRes) setParams(paramsRes);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -98,8 +135,43 @@ function Strategies() {
               <p style={{ fontSize: '13px', color: 'var(--md-sys-color-outline)', marginBottom: '16px' }}>No parameters</p>
             )}
 
-            <h3 style={{ fontSize: '14px', fontWeight: 500, marginBottom: '8px', color: 'var(--md-sys-color-on-surface-variant)' }}>Source Code</h3>
-            {source ? (
+            <h3 style={{ fontSize: '14px', fontWeight: 500, marginBottom: '8px', color: 'var(--md-sys-color-on-surface-variant)' }}>
+              Source Code
+              {!editing && source && (
+                <button onClick={handleStartEditing} style={{ marginLeft: '12px', ...smallBtn }}>Edit</button>
+              )}
+            </h3>
+
+            {editing && editSource ? (
+              <div>
+                <div style={{ border: '1px solid var(--md-sys-color-outline)', borderRadius: '8px', overflow: 'hidden' }}>
+                  <Editor
+                    height="400px"
+                    defaultLanguage="python"
+                    theme="vs-dark"
+                    value={editSource}
+                    onChange={(val) => setEditSource(val || '')}
+                    options={{
+                      minimap: { enabled: false },
+                      fontSize: 13,
+                      fontFamily: '"JetBrains Mono", monospace',
+                      lineNumbers: 'on',
+                      scrollBeyondLastLine: false,
+                      automaticLayout: true,
+                    }}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: '8px', marginTop: '8px', alignItems: 'center' }}>
+                  <button onClick={handleCancelEditing} style={smallBtn}>Cancel</button>
+                  <button onClick={handleSave} disabled={saving} style={{ ...smallBtn, background: 'var(--md-sys-color-primary)', color: 'var(--md-sys-color-on-primary)' }}>
+                    {saving ? 'Saving...' : 'Save'}
+                  </button>
+                  {saveError && (
+                    <span style={{ color: 'var(--md-sys-color-error)', fontSize: '12px', marginLeft: '8px' }}>{saveError}</span>
+                  )}
+                </div>
+              </div>
+            ) : source ? (
               <pre style={{
                 background: 'var(--md-sys-color-surface-container)',
                 borderRadius: '8px',

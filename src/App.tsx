@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import Dashboard from './routes/Dashboard';
 import Backtest from './routes/Backtest';
+import BacktestHistory from './routes/BacktestHistory';
+import Comparison from './routes/Comparison';
 import LiveMonitor from './routes/LiveMonitor';
 import Strategies from './routes/Strategies';
 import Data from './routes/Data';
@@ -11,6 +13,7 @@ import './theme.css';
 const NAV_ITEMS = [
   { label: 'Dashboard', path: '/', icon: 'dashboard' },
   { label: 'Backtest', path: '/backtest', icon: 'play_arrow' },
+  { label: 'History', path: '/history', icon: 'history' },
   { label: 'Live', path: '/live', icon: 'monitoring' },
   { label: 'Strategies', path: '/strategies', icon: 'menu_book' },
   { label: 'Data', path: '/data', icon: 'database' },
@@ -64,6 +67,8 @@ function AppLayout() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/backtest" element={<Backtest />} />
+            <Route path="/history" element={<BacktestHistory />} />
+            <Route path="/compare" element={<Comparison />} />
             <Route path="/live" element={<LiveMonitor />} />
             <Route path="/strategies" element={<Strategies />} />
             <Route path="/data" element={<Data />} />

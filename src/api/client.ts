@@ -20,6 +20,7 @@ export interface BacktestStatus {
   status: 'pending' | 'running' | 'completed' | 'failed';
   progress: number;
   error?: string | null;
+  logs?: string[];
 }
 
 export interface BacktestMetrics {
@@ -167,8 +168,9 @@ export async function runBacktest(config: BacktestConfig): Promise<BacktestRunRe
   });
 }
 
-export async function getBacktestStatus(runId: string): Promise<BacktestStatus> {
-  return request<BacktestStatus>(`/backtest/${runId}/status`);
+export async function getBacktestStatus(runId: string, since = 0): Promise<BacktestStatus> {
+  const params = since > 0 ? `?since=${since}` : '';
+  return request<BacktestStatus>(`/backtest/${runId}/status${params}`);
 }
 
 export async function getBacktestResults(runId: string): Promise<BacktestResults> {
@@ -227,6 +229,13 @@ export async function importStrategy(file: File): Promise<Record<string, unknown
   });
   if (!response.ok) throw new ApiError(response.status, (await response.json()).detail || 'Import failed');
   return response.json();
+}
+
+export async function updateStrategySource(name: string, source: string): Promise<Record<string, unknown>> {
+  return request<Record<string, unknown>>(`/strategies/${encodeURIComponent(name)}/source`, {
+    method: 'PUT',
+    body: JSON.stringify({ source }),
+  });
 }
 
 export async function getLiveStatus(): Promise<LiveStatus> {

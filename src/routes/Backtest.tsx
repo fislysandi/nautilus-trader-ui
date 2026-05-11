@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useTradingStore } from '../stores/trading';
 import type { StrategyParam, SweepResult } from '../api/client';
-import { runSweep, getSweepResults } from '../api/client';
+import { runSweep, getSweepResults, getBacktestStatus } from '../api/client';
 import MetricCard from '../components/MetricCard';
 import DataTable from '../components/DataTable';
 import EquityChart from '../components/EquityChart';
 import SweepResults from './SweepResults';
+import LogTerminal from '../components/LogTerminal';
 
 type ViewState = 'config' | 'running' | 'results';
 
@@ -33,6 +34,8 @@ function Backtest() {
   const [sweepMax, setSweepMax] = useState('10');
   const [sweepStep, setSweepStep] = useState('1');
   const [sweepResults, setSweepResults] = useState<SweepResult[]>([]);
+  const [logs, setLogs] = useState<string[]>([]);
+  const [showLogs, setShowLogs] = useState(false);
 
   useEffect(() => {
     fetchStrategies();
@@ -66,6 +69,7 @@ function Backtest() {
     setError(null);
     setView('running');
     setProgress(0);
+    setLogs([]);
 
     try {
       const runId = await runBacktest({
@@ -83,8 +87,22 @@ function Backtest() {
       });
       setCurrentRunId(runId);
 
-      await pollBacktestUntilComplete(runId, setProgress);
-      setView('results');
+      const logInterval = setInterval(async () => {
+        try {
+          const status = await getBacktestStatus(runId, logs.length);
+          const newLogs = status.logs;
+          if (newLogs && newLogs.length > 0) {
+            setLogs(prev => [...prev, ...newLogs]);
+          }
+        } catch { /* ignore poll errors */ }
+      }, 500);
+
+      try {
+        await pollBacktestUntilComplete(runId, setProgress);
+        setView('results');
+      } finally {
+        clearInterval(logInterval);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Backtest failed');
       setView('config');
@@ -373,6 +391,9 @@ function Backtest() {
           <p style={{ marginTop: '8px', fontSize: '12px', color: 'var(--md-sys-color-on-surface-variant)' }}>
             {progress}% complete
           </p>
+          <div style={{ marginTop: '16px' }}>
+            <LogTerminal logs={logs} height="250px" />
+          </div>
         </div>
       </div>
     );
@@ -415,6 +436,16 @@ function Backtest() {
           <div className="chart-container" style={{ marginBottom: '24px' }}>
             <EquityChart data={results?.equity_curve || []} title="Equity Curve" height={320} />
           </div>
+
+          {logs.length > 0 && (
+            <div className="chart-container" style={{ marginBottom: '24px' }}>
+              <h3 style={{ fontSize: '14px', fontWeight: 500, marginBottom: '8px', cursor: 'pointer' }}
+                  onClick={() => setShowLogs(!showLogs)}>
+                {showLogs ? '▼' : '▶'} Execution Logs ({logs.length} lines)
+              </h3>
+              {showLogs && <LogTerminal logs={logs} height="300px" />}
+            </div>
+          )}
 
           <div className="chart-container">
             <h2 style={{ fontSize: '16px', fontWeight: 500, marginBottom: '12px' }}>Trades</h2>
