@@ -234,12 +234,12 @@ function LiveMonitor() {
 
       <div className="chart-container" style={{ marginBottom: '16px' }}>
         <h2 style={{ fontSize: '16px', fontWeight: 500, marginBottom: '12px' }}>Positions</h2>
-        <DataTable columns={posColumns} data={positions || []} />
+        <DataTable columns={posColumns as any} data={isAll ? (displayPositions as any[]) : (positions || [])} />
       </div>
 
       <div className="chart-container">
         <h2 style={{ fontSize: '16px', fontWeight: 500, marginBottom: '12px' }}>Orders</h2>
-        <DataTable columns={orderColumns} data={orders || []} />
+        <DataTable columns={orderColumns as any} data={isAll ? (displayOrders as any[]) : (orders || [])} />
       </div>
     </div>
   );
