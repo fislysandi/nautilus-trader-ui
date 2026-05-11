@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import * as api from '../api/client';
 
-interface BacktestRun {
+export interface BacktestRun {
   runId: string;
   config: api.BacktestConfig;
   status: api.BacktestStatus | null;
@@ -93,7 +93,7 @@ export const useTradingStore = create<TradingStore>((set) => ({
     set((state) => ({
       backtestRuns: {
         ...state.backtestRuns,
-        [runId]: { ...state.backtestRuns[runId], status },
+        [runId]: { ...state.backtestRuns[runId]!, status },
       },
     }));
   },
@@ -103,7 +103,7 @@ export const useTradingStore = create<TradingStore>((set) => ({
     set((state) => ({
       backtestRuns: {
         ...state.backtestRuns,
-        [runId]: { ...state.backtestRuns[runId], results },
+        [runId]: { ...state.backtestRuns[runId]!, results },
       },
     }));
   },
@@ -113,7 +113,7 @@ export const useTradingStore = create<TradingStore>((set) => ({
     set((state) => ({
       backtestRuns: {
         ...state.backtestRuns,
-        [runId]: { ...state.backtestRuns[runId], trades },
+        [runId]: { ...state.backtestRuns[runId]!, trades },
       },
     }));
   },
@@ -146,19 +146,19 @@ export const useTradingStore = create<TradingStore>((set) => ({
           set((state) => ({
             backtestRuns: {
               ...state.backtestRuns,
-              [runId]: { ...state.backtestRuns[runId], status },
+              [runId]: { ...state.backtestRuns[runId]!, status },
             },
           }));
-
+ 
           if (onProgress) onProgress(status.progress);
-
+ 
           if (status.status === 'completed') {
             const results = await api.getBacktestResults(runId);
             const trades = await api.getBacktestTrades(runId);
             set((state) => ({
               backtestRuns: {
                 ...state.backtestRuns,
-                [runId]: { ...state.backtestRuns[runId], results, trades },
+                [runId]: { ...state.backtestRuns[runId]!, results, trades },
               },
             }));
             resolve(results);

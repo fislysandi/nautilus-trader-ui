@@ -40,7 +40,7 @@ function getCSSVar(varName: string): string {
 
 function DrawdownTooltip({ active, payload, label }: TooltipProps<number, string>) {
   if (active && payload && payload.length) {
-    const val = payload[0].value as number;
+    const val = payload[0]!.value as number;
     return (
       <div
         style={{

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useTradingStore } from '../stores/trading';
+import { useTradingStore, type BacktestRun } from '../stores/trading';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 function Comparison() {
@@ -13,10 +13,12 @@ function Comparison() {
     );
   };
 
-  const selectedRuns = selectedIds.map((id) => backtestRuns[id]).filter(Boolean);
+  const selectedRuns = selectedIds
+    .map((id) => backtestRuns[id])
+    .filter((r): r is BacktestRun => r !== undefined);
 
   const metricNames = ['sharpe_ratio', 'total_pnl', 'win_rate', 'max_drawdown', 'total_trades'] as const;
-  const metricLabels: Record<string, string> = {
+  const metricLabels: Record<typeof metricNames[number], string> = {
     sharpe_ratio: 'Sharpe Ratio',
     total_pnl: 'Total PnL',
     win_rate: 'Win Rate',
@@ -125,7 +127,7 @@ function Comparison() {
                     type="monotone"
                     dataKey="value"
                     name={run.runId.slice(0, 8)}
-                    stroke={['#5e6ad2', '#27a644', '#eab308', '#ef4444', '#78d2c6'][idx % 5]}
+                    stroke={['#5e6ad2', '#27a644', '#eab308', '#ef4444', '#78d2c6'][idx % 5]!}
                     fill="transparent"
                     strokeWidth={2}
                     dot={false}

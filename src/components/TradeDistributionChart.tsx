@@ -49,7 +49,7 @@ function buildBins(trades: Trade[], bucketCount = 10): Bin[] {
 
   for (const pnl of pnls) {
     const idx = Math.min(Math.floor((pnl - min) / bucketSize), bucketCount - 1);
-    bins[idx].count++;
+    bins[idx]!.count++;
   }
 
   return bins;
@@ -57,7 +57,7 @@ function buildBins(trades: Trade[], bucketCount = 10): Bin[] {
 
 function DistributionTooltip({ active, payload, label }: TooltipProps<number, string>) {
   if (active && payload && payload.length) {
-    const count = payload[0].value as number;
+    const count = payload[0]!.value as number;
     return (
       <div
         style={{

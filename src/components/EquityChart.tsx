@@ -61,7 +61,7 @@ function CustomTooltip({ active, payload, label }: TooltipProps<number, string>)
           {formatDate(label as string)}
         </div>
         <div style={{ color: 'var(--md-sys-color-on-surface)', fontWeight: 600, fontSize: '14px' }}>
-          {formatValue(payload[0].value as number)}
+          {formatValue(payload[0]!.value as number)}
         </div>
       </div>
     );
