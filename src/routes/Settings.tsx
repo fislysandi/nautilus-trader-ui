@@ -428,11 +428,3 @@ const actionBtnStyle: React.CSSProperties = {
 };
 
 export default Settings;
-  display: 'block', width: '100%', padding: '12px 16px',
-  background: 'var(--md-sys-color-surface-container)',
-  color: 'var(--md-sys-color-on-surface)',
-  border: '1px dashed var(--md-sys-color-outline)', borderRadius: '8px',
-  fontSize: '14px', fontWeight: 500, cursor: 'pointer', textAlign: 'center',
-};
-
-export default Settings;
