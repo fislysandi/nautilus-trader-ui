@@ -143,7 +143,7 @@ class BacktestService:
                     original_init(self, *args, **kwargs)
                 except AttributeError as e:
                     if "config" in str(e) and "not writable" in str(e):
-                        object.__setattr__(self, "config", kwargs.get("config"))
+                        pass  # config already set by super().__init__
                     else:
                         raise
 
