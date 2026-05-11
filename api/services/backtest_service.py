@@ -139,15 +139,12 @@ class BacktestService:
             self._runs[run_id]["progress"] = 0.5
 
             self._log(run_id, "Running engine (this may take a while)...")
-            loop = asyncio.get_running_loop()
 
             log_buffer = io.StringIO()
             try:
                 with contextlib.redirect_stdout(log_buffer):
                     with contextlib.redirect_stderr(log_buffer):
-                        await loop.run_in_executor(
-                            None,
-                            self._run_engine,
+                        self._run_engine(
                             engine,
                             config.get("start_date"),
                             config.get("end_date"),
@@ -192,13 +189,8 @@ class BacktestService:
         start_date: Optional[str],
         end_date: Optional[str],
     ):
-        """Run the engine synchronously (called from thread executor)."""
-        run_kwargs = {}
-        if start_date:
-            run_kwargs["start"] = start_date
-        if end_date:
-            run_kwargs["end"] = end_date
-        engine.run(**run_kwargs)
+        """Run the engine synchronously."""
+        engine.run()
 
     def _create_engine(self, initial_capital: str) -> BacktestEngine:
         """Create and configure a BacktestEngine with Polymarket venue."""
