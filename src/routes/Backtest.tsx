@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTradingStore } from '../stores/trading';
-import type { StrategyParam, SweepResult } from '../api/client';
+import type { StrategyParam, SweepResult, BacktestConfig } from '../api/client';
 import { runSweep, getSweepResults, getBacktestStatus } from '../api/client';
 import MetricCard from '../components/MetricCard';
 import DataTable from '../components/DataTable';
@@ -21,6 +21,7 @@ function Backtest() {
     fetchBacktestStatus,
     fetchBacktestResults,
     fetchBacktestTrades,
+    cancelBacktest,
     backtestRuns,
   } = useTradingStore();
 
@@ -97,12 +98,13 @@ function Backtest() {
     const run = backtestRuns[urlRunId];
     if (run?.results) {
       setView('results');
-      setSelectedStrategy(run.config?.strategy_name || '');
+      applyRunConfig(run);
       return;
     }
 
     fetchBacktestStatus(urlRunId).then(() => {
       const updated = useTradingStore.getState().backtestRuns[urlRunId];
+      if (updated) applyRunConfig(updated);
       if (updated?.status?.status === 'completed') {
         setView('results');
         fetchBacktestResults(urlRunId);
@@ -117,6 +119,15 @@ function Backtest() {
       }
     }).catch(() => setView('config'));
   }, [urlRunId]);
+
+  function applyRunConfig(run: { config: BacktestConfig }) {
+    const c = run.config;
+    if (c.strategy_name) setSelectedStrategy(c.strategy_name);
+    if (c.instrument_id) setInstrument(c.instrument_id);
+    if (c.initial_capital) setCapital(String(c.initial_capital));
+    setStartDate(c.start_date?.slice(0, 10) || '');
+    setEndDate(c.end_date?.slice(0, 10) || '');
+  }
 
   function startPolling(runId: string) {
     setProgress(0);
@@ -485,26 +496,74 @@ function Backtest() {
   }
 
   if (view === 'running') {
+    const cfg = (currentRun?.config || {}) as Record<string, unknown>;
     return (
       <div>
-        <h1 style={{ fontSize: '28px', fontWeight: 600, marginBottom: '24px' }}>
-          {sweepParam ? 'Running Sweep...' : 'Running Backtest...'}
-        </h1>
-        <div className="chart-container" style={{ maxWidth: '640px' }}>
-          <p style={{ marginBottom: '16px', color: 'var(--md-sys-color-on-surface-variant)' }}>
-            {sweepParam
-              ? `Sweeping ${sweepParam} on ${selectedStrategy}`
-              : `Running ${selectedStrategy} on BTC-15M-UP.POLYMARKET`}
-          </p>
-          <div style={{ height: '4px', background: 'var(--md-sys-color-surface-container-high)', borderRadius: '4px', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+          <h1 style={{ fontSize: '28px', fontWeight: 600 }}>
+            {sweepParam ? 'Running Sweep...' : 'Running Backtest...'}
+          </h1>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {currentRun && (
+              <button
+                onClick={() => {
+                  cancelBacktest(urlRunId || currentRunId!);
+                  cancelPollRef.current?.();
+                  setView('config');
+                }}
+                style={{
+                  background: 'transparent',
+                  border: '1px solid var(--semantic-danger, #ef4444)',
+                  color: 'var(--semantic-danger, #ef4444)',
+                  borderRadius: '8px',
+                  padding: '8px 16px',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="chart-container" style={{ marginBottom: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '16px' }}>
+            <div>
+              <span className="metric-label">Strategy</span>
+              <div style={{ fontSize: '15px', fontWeight: 500, marginTop: '2px' }}>{String(cfg.strategy_name || selectedStrategy || '—')}</div>
+            </div>
+            <div>
+              <span className="metric-label">Instrument</span>
+              <div style={{ fontSize: '15px', fontWeight: 500, marginTop: '2px' }}>{String(cfg.instrument_id || instrument || '—')}</div>
+            </div>
+            <div>
+              <span className="metric-label">Capital</span>
+              <div style={{ fontSize: '15px', fontWeight: 500, marginTop: '2px' }}>${String(cfg.initial_capital || capital || '—')}</div>
+            </div>
+            <div>
+              <span className="metric-label">Period</span>
+              <div style={{ fontSize: '15px', fontWeight: 500, marginTop: '2px' }}>
+                {String(cfg.start_date || startDate || '?').slice(0, 10)} → {String(cfg.end_date || endDate || '?').slice(0, 10)}
+              </div>
+            </div>
+          </div>
+
+          {sweepParam && (
+            <p style={{ marginBottom: '12px', color: 'var(--md-sys-color-on-surface-variant)', fontSize: '13px' }}>
+              Sweeping parameter <strong>{sweepParam}</strong>
+            </p>
+          )}
+
+          <div style={{ height: '4px', background: 'var(--md-sys-color-surface-container-high)', borderRadius: '4px', overflow: 'hidden', marginBottom: '8px' }}>
             <div style={{ height: '100%', width: `${progress}%`, background: 'var(--md-sys-color-primary)', borderRadius: '4px', transition: 'width 0.3s ease' }} />
           </div>
-          <p style={{ marginTop: '8px', fontSize: '12px', color: 'var(--md-sys-color-on-surface-variant)' }}>
+          <p style={{ fontSize: '12px', color: 'var(--md-sys-color-on-surface-variant)', marginBottom: '16px' }}>
             {progress}% complete
           </p>
-          <div style={{ marginTop: '16px' }}>
-            <LogTerminal logs={logs} height="250px" />
-          </div>
+
+          <LogTerminal logs={logs} height="300px" />
         </div>
       </div>
     );
