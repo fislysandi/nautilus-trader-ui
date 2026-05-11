@@ -227,6 +227,8 @@ function Settings() {
           {SETTINGS_SECTIONS[activeSection]!.title}
           </h1>
           <button onClick={handleSave} style={btnPrimary}>
+            {saved ? 'Saved' : 'Save'}
+          </button>
         </div>
 
         {SETTINGS_SECTIONS[activeSection]!.description && (
