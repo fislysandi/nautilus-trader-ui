@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useParams } from 'react-router-dom';
 import { useTradingStore } from '../stores/trading';
 import type { StrategyParam, SweepResult } from '../api/client';
 import { runSweep, getSweepResults, getBacktestStatus } from '../api/client';
@@ -11,11 +12,15 @@ import LogTerminal from '../components/LogTerminal';
 type ViewState = 'config' | 'running' | 'results';
 
 function Backtest() {
+  const { runId: urlRunId } = useParams<{ runId: string }>();
   const {
     strategies,
     fetchStrategies,
     runBacktest,
     pollBacktestUntilComplete,
+    fetchBacktestStatus,
+    fetchBacktestResults,
+    fetchBacktestTrades,
     backtestRuns,
   } = useTradingStore();
 
@@ -84,6 +89,59 @@ function Backtest() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!urlRunId) return;
+    setCurrentRunId(urlRunId);
+
+    const run = backtestRuns[urlRunId];
+    if (run?.results) {
+      setView('results');
+      setSelectedStrategy(run.config?.strategy_name || '');
+      return;
+    }
+
+    fetchBacktestStatus(urlRunId).then(() => {
+      const updated = useTradingStore.getState().backtestRuns[urlRunId];
+      if (updated?.status?.status === 'completed') {
+        setView('results');
+        fetchBacktestResults(urlRunId);
+        fetchBacktestTrades(urlRunId);
+      } else if (updated?.status?.status === 'running' || updated?.status?.status === 'pending') {
+        setView('running');
+        startPolling(urlRunId);
+      } else {
+        setView('results');
+        fetchBacktestResults(urlRunId);
+        fetchBacktestTrades(urlRunId);
+      }
+    }).catch(() => setView('config'));
+  }, [urlRunId]);
+
+  function startPolling(runId: string) {
+    setProgress(0);
+    const logInterval = setInterval(async () => {
+      try {
+        const status = await getBacktestStatus(runId, logs.length);
+        const newLogs = status.logs;
+        if (newLogs && newLogs.length > 0) {
+          setLogs(prev => [...prev, ...newLogs]);
+        }
+      } catch { /* ignore */ }
+    }, 500);
+
+    const pollResult = pollBacktestUntilComplete(runId, setProgress);
+    cancelPollRef.current = pollResult.cancel;
+    pollResult.then(() => {
+      setView('results');
+      fetchBacktestResults(runId);
+      fetchBacktestTrades(runId);
+    }).catch(() => {});
+    pollResult.finally(() => {
+      cancelPollRef.current = null;
+      clearInterval(logInterval);
+    });
+  }
 
   function validateForm(): boolean {
     const errors: Record<string, string> = {};

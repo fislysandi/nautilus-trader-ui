@@ -17,7 +17,7 @@ export interface BacktestRunResponse {
 
 export interface BacktestStatus {
   run_id: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
   progress: number;
   error?: string | null;
   logs?: string[];
@@ -191,6 +191,10 @@ export async function getBacktestFills(runId: string): Promise<Record<string, un
 
 export async function deleteBacktest(runId: string): Promise<void> {
   return request<void>(`/backtest/${runId}`, { method: 'DELETE' });
+}
+
+export async function cancelBacktest(runId: string): Promise<{ run_id: string; status: string }> {
+  return request<{ run_id: string; status: string }>(`/backtest/${runId}/cancel`, { method: 'POST' });
 }
 
 export async function runSweep(config: SweepConfig): Promise<{ sweep_id: string }> {

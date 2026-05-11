@@ -76,6 +76,7 @@ function AppLayout() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/backtest" element={<Backtest />} />
+            <Route path="/backtest/:runId" element={<Backtest />} />
             <Route path="/history" element={<BacktestHistory />} />
             <Route path="/compare" element={<Comparison />} />
             <Route path="/live" element={<LiveMonitor />} />

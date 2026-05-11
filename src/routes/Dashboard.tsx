@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTradingStore } from '../stores/trading';
 import MetricCard from '../components/MetricCard';
 import DataTable from '../components/DataTable';
@@ -23,12 +24,14 @@ const tradeColumns = [
 ];
 
 function Dashboard() {
+  const navigate = useNavigate();
   const fetchStrategies = useTradingStore((s) => s.fetchStrategies);
   const fetchInstruments = useTradingStore((s) => s.fetchInstruments);
   const backtestRuns = useTradingStore((s) => s.backtestRuns);
   const strategies = useTradingStore((s) => s.strategies);
   const strategiesLoading = useTradingStore((s) => s.strategiesLoading);
   const instruments = useTradingStore((s) => s.instruments);
+  const cancelBacktest = useTradingStore((s) => s.cancelBacktest);
 
   useEffect(() => {
     fetchStrategies();
@@ -80,10 +83,15 @@ function Dashboard() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {runningRuns.map((run) => (
               <div key={run.runId}
+                onClick={() => navigate(`/backtest/${run.runId}`)}
                 style={{
                   background: 'var(--md-sys-color-surface-container)',
                   borderRadius: '8px', padding: '12px 16px',
+                  cursor: 'pointer',
+                  transition: 'background 0.15s ease',
                 }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'var(--md-sys-color-surface-container-high)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'var(--md-sys-color-surface-container)'}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
                   <div>
@@ -94,9 +102,26 @@ function Dashboard() {
                       {run.config.instrument_id}
                     </span>
                   </div>
-                  <span className="status-badge status-active" style={{ fontSize: '11px' }}>
-                    {run.status?.status === 'running' ? 'Running' : 'Queued'}
-                  </span>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <span className="status-badge status-active" style={{ fontSize: '11px' }}>
+                      {run.status?.status === 'running' ? 'Running' : 'Queued'}
+                    </span>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); cancelBacktest(run.runId); }}
+                      style={{
+                        background: 'transparent',
+                        border: '1px solid var(--semantic-danger, #ef4444)',
+                        color: 'var(--semantic-danger, #ef4444)',
+                        borderRadius: '4px',
+                        padding: '2px 8px',
+                        fontSize: '11px',
+                        cursor: 'pointer',
+                        fontWeight: 500,
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </div>
                 <div style={{ height: '4px', background: 'var(--md-sys-color-surface-container-high)', borderRadius: '4px', overflow: 'hidden' }}>
                   <div style={{

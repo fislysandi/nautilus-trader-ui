@@ -34,6 +34,7 @@ interface TradingStore {
   fetchBacktestResults: (runId: string) => Promise<void>;
   fetchBacktestTrades: (runId: string) => Promise<void>;
   deleteBacktest: (runId: string) => void;
+  cancelBacktest: (runId: string) => void;
   pollBacktestUntilComplete: (runId: string, onProgress?: (pct: number) => void) => Promise<api.BacktestResults> & { cancel: () => void };
 
   // Strategy actions
@@ -123,6 +124,27 @@ export const useTradingStore = create<TradingStore>((set) => ({
     set((state) => {
       const { [runId]: _, ...rest } = state.backtestRuns;
       return { backtestRuns: rest };
+    });
+  },
+
+  cancelBacktest: (runId) => {
+    api.cancelBacktest(runId).catch(() => {});
+    set((state) => {
+      const existing = state.backtestRuns[runId];
+      if (!existing) return state;
+      return {
+        backtestRuns: {
+          ...state.backtestRuns,
+          [runId]: {
+            ...existing,
+            status: {
+              run_id: runId,
+              status: 'cancelled' as const,
+              progress: 0,
+            },
+          },
+        },
+      };
     });
   },
 
