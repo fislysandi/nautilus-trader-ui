@@ -189,29 +189,8 @@ class BacktestService:
         start_date: Optional[str],
         end_date: Optional[str],
     ):
-        """Run the engine synchronously with a timeout."""
-        from concurrent.futures import ThreadPoolExecutor, TimeoutError
-        import threading
-
-        result = [None]
-        exception = [None]
-        done = threading.Event()
-
-        def _run():
-            try:
-                engine.run()
-                result[0] = True
-            except Exception as e:
-                exception[0] = e
-            finally:
-                done.set()
-
-        t = threading.Thread(target=_run, daemon=True)
-        t.start()
-        if not done.wait(timeout=30):
-            pass  # Timeout — engine hang
-        if exception[0]:
-            raise exception[0]
+        """Run the engine synchronously."""
+        engine.run()
 
     def _create_engine(self, initial_capital: str) -> BacktestEngine:
         """Create and configure a BacktestEngine with Polymarket venue."""
@@ -363,33 +342,10 @@ class BacktestService:
                 ts_init=0,
             )
             engine.add_instrument(instrument)
-
-            base_ns = pd.Timestamp("2025-01-01", tz="UTC").value
-            price_val = 0.50
-            num_ticks = 100
-            ticks = []
-
-            for i in range(num_ticks):
-                price_val += random.uniform(-0.02, 0.02)
-                price_val = max(0.01, min(0.99, price_val))
-                tick = TradeTick(
-                    instrument.id if hasattr(instrument, "id") else instrument_id,
-                    Price(round(price_val, 4), 4),
-                    Quantity(random.randint(1, 10), 0),
-                    OrderSide.BUY if random.random() > 0.5 else OrderSide.SELL,
-                    TradeId(str(i)),
-                    base_ns + i * 900_000_000_000,
-                    base_ns + i * 900_000_000_000,
-                )
-                ticks.append(tick)
-
-            engine.add_data(ticks)
-            try:
-                self._log(
-                    run_id, f"Generated {num_ticks} synthetic trade ticks for backtest"
-                )
-            except (NameError, AttributeError):
-                pass
+            self._log(
+                run_id,
+                "No real market data found — instrument created without trade data",
+            )
             return instrument
         except Exception:
             try:
