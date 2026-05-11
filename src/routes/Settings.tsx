@@ -224,21 +224,19 @@ function Settings() {
       <div style={{ flex: 1, maxWidth: '520px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <h1 style={{ fontSize: '24px', fontWeight: 600, margin: 0 }}>
-            {SETTINGS_SECTIONS[activeSection].title}
+          {SETTINGS_SECTIONS[activeSection]!.title}
           </h1>
           <button onClick={handleSave} style={btnPrimary}>
-            {saved ? 'Saved' : 'Save'}
-          </button>
         </div>
 
-        {SETTINGS_SECTIONS[activeSection].description && (
+        {SETTINGS_SECTIONS[activeSection]!.description && (
           <p style={{ fontSize: '13px', color: 'var(--md-sys-color-on-surface-variant)', marginBottom: '20px', marginTop: 0 }}>
-            {SETTINGS_SECTIONS[activeSection].description}
+            {SETTINGS_SECTIONS[activeSection]!.description}
           </p>
         )}
 
         <div className="chart-container">
-          {SETTINGS_SECTIONS[activeSection].fields.map(renderField)}
+          {SETTINGS_SECTIONS[activeSection]!.fields.map(renderField)}
         </div>
       </div>
     </div>
