@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { useState } from 'react';
 import Dashboard from './routes/Dashboard';
 import Backtest from './routes/Backtest';
 import BacktestHistory from './routes/BacktestHistory';
@@ -25,12 +26,12 @@ const NAV_ITEMS = [
   { label: 'Settings', path: '/settings', icon: 'settings' },
 ];
 
-function NavDrawer() {
+function NavDrawer({ open }: { open: boolean }) {
   const navigate = useNavigate();
   const location = useLocation();
 
   return (
-    <md-navigation-drawer open style={{ '--md-navigation-drawer-width': '256px' } as React.CSSProperties}>
+    <md-navigation-drawer open={open} style={{ '--md-navigation-drawer-width': '256px' } as React.CSSProperties}>
       <div slot="header" style={{ padding: '16px', fontSize: '14px', color: 'var(--md-sys-color-on-surface-variant)' }}>
         Navigation
       </div>
@@ -55,10 +56,11 @@ function NavDrawer() {
 }
 
 function AppLayout() {
+  const [drawerOpen, setDrawerOpen] = useState(true);
   return (
     <div className="app-layout">
       <header className="top-app-bar">
-        <md-icon-button className="menu-button">
+        <md-icon-button className="menu-button" onClick={() => setDrawerOpen(!drawerOpen)}>
           <md-icon>menu</md-icon>
         </md-icon-button>
         <span className="top-app-bar-headline">NautilusTrader UI</span>
@@ -67,7 +69,7 @@ function AppLayout() {
         </div>
       </header>
       <div className="app-content">
-        <NavDrawer />
+        <NavDrawer open={drawerOpen} />
         <main className="main-content">
           <ErrorBoundary>
           <Routes>
