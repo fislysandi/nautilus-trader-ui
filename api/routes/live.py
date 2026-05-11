@@ -1,4 +1,8 @@
-"""Live trading endpoints — positions, orders, account, and node control."""
+"""Live trading endpoints — positions, orders, account, and node control.
+
+State is persisted via DbService (SystemState table) so node status
+survives restarts.
+"""
 
 from __future__ import annotations
 
@@ -7,9 +11,31 @@ from datetime import datetime
 from fastapi import APIRouter
 
 from api.models.schemas import AccountBalance, LiveStatus, Order, Position
+from api.db_service import DbService
 
 router = APIRouter(prefix="/live", tags=["live"])
-_node_status: dict = {"status": "stopped", "started_at": None}
+
+_db: DbService | None = None
+
+
+def set_db(db: DbService) -> None:
+    """Wire the DbService singleton (called from lifespan)."""
+    global _db
+    _db = db
+
+
+async def _get_status() -> tuple[str, str | None]:
+    """Get live node status from DB or return default stopped."""
+    if _db:
+        status = await _db.get_state("live_status")
+        started_at = await _db.get_state("live_started_at")
+        if not status:
+            await _db.set_state("live_status", "stopped")
+            status = "stopped"
+    else:
+        status = "stopped"
+        started_at = None
+    return status, started_at
 
 
 @router.get(
@@ -19,10 +45,15 @@ _node_status: dict = {"status": "stopped", "started_at": None}
 )
 async def get_live_status() -> LiveStatus:
     """Return the current state of the live trading node."""
-    status = _node_status["status"]
+    status, started_at = await _get_status()
     uptime = 0.0
-    if _node_status["started_at"]:
-        uptime = (datetime.now() - _node_status["started_at"]).total_seconds()
+    if started_at:
+        try:
+            uptime = (
+                datetime.now() - datetime.fromisoformat(started_at)
+            ).total_seconds()
+        except (ValueError, TypeError):
+            uptime = 0.0
     return LiveStatus(
         status=status,
         uptime_seconds=uptime,
@@ -38,7 +69,8 @@ async def get_live_status() -> LiveStatus:
 )
 async def get_live_positions() -> list[Position]:
     """Return all open positions in the live account."""
-    if _node_status["status"] == "stopped":
+    status, _ = await _get_status()
+    if status == "stopped":
         return []
     return [
         Position(
@@ -67,7 +99,8 @@ async def get_live_positions() -> list[Position]:
 )
 async def get_live_orders() -> list[Order]:
     """Return all open and pending orders."""
-    if _node_status["status"] == "stopped":
+    status, _ = await _get_status()
+    if status == "stopped":
         return []
     return [
         Order(
@@ -113,8 +146,16 @@ async def get_account_history() -> list[dict]:
 )
 async def start_live() -> LiveStatus:
     """Start the live trading node."""
-    _node_status["status"] = "running"
-    _node_status["started_at"] = datetime.now()
+    now = datetime.now().isoformat()
+    if _db:
+        await _db.set_state("live_status", "running")
+        await _db.set_state("live_started_at", now)
+        return LiveStatus(
+            status="running",
+            uptime_seconds=0.0,
+            node_version="1.221.0",
+            active_strategies=1,
+        )
     return LiveStatus(
         status="running",
         uptime_seconds=0.0,
@@ -130,8 +171,9 @@ async def start_live() -> LiveStatus:
 )
 async def stop_live() -> LiveStatus:
     """Gracefully stop the live trading node."""
-    _node_status["status"] = "stopped"
-    _node_status["started_at"] = None
+    if _db:
+        await _db.set_state("live_status", "stopped")
+        await _db.set_state("live_started_at", "")
     return LiveStatus(
         status="stopped",
         uptime_seconds=0.0,
@@ -147,8 +189,9 @@ async def stop_live() -> LiveStatus:
 )
 async def kill_live() -> LiveStatus:
     """Kill switch — cancel all orders, close all positions immediately."""
-    _node_status["status"] = "stopped"
-    _node_status["started_at"] = None
+    if _db:
+        await _db.set_state("live_status", "stopped")
+        await _db.set_state("live_started_at", "")
     return LiveStatus(
         status="stopped",
         uptime_seconds=0.0,

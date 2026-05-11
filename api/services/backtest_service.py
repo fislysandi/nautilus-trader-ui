@@ -38,23 +38,31 @@ class BacktestService:
     to avoid blocking the event loop.
     """
 
-    def __init__(self, strategies_dir: str = "strategies"):
+    def __init__(self, strategies_dir: str = "strategies", db_service=None):
         self.strategies_dir = Path(strategies_dir).resolve()
+        self._db = db_service
+        self._run_log_counters: dict[str, int] = {}
         self._runs: dict[str, dict] = {}
         self._sweeps: dict[str, dict] = {}
-        self._logs: dict[str, list[str]] = {}  # run_id → log lines
-
-    MAX_RUNS = 100
+        self._logs: dict[str, list[str]] = {}
 
     def _log(self, run_id: str, message: str):
-        """Append a timestamped log line to the run's log buffer."""
-        if run_id not in self._logs:
-            self._logs[run_id] = []
+        if run_id not in self._run_log_counters:
+            self._run_log_counters[run_id] = 0
+        line_no = self._run_log_counters[run_id]
+        self._run_log_counters[run_id] = line_no + 1
         timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
-        self._logs[run_id].append(f"[{timestamp}] {message}")
+        msg = f"[{timestamp}] {message}"
+        if self._db:
+            asyncio.create_task(self._db.append_log(run_id, line_no, msg))
+        else:
+            if run_id not in self._logs:
+                self._logs[run_id] = []
+            self._logs[run_id].append(msg)
 
-    def get_logs(self, run_id: str, since: int = 0) -> list[str]:
-        """Get log lines from a run, optionally since an index."""
+    async def get_logs(self, run_id: str, since: int = 0) -> list[str]:
+        if self._db:
+            return await self._db.get_logs(run_id, since)
         lines = self._logs.get(run_id, [])
         return lines[since:]
 
@@ -74,12 +82,15 @@ class BacktestService:
             run_id: str
         """
         run_id = str(uuid.uuid4())
-        self._runs[run_id] = {
-            "status": "pending",
-            "progress": 0.0,
-            "config": config,
-            "error": None,
-        }
+        if self._db:
+            await self._db.create_run(run_id, config)
+        else:
+            self._runs[run_id] = {
+                "status": "pending",
+                "progress": 0.0,
+                "config": config,
+                "error": None,
+            }
         asyncio.create_task(self._execute_backtest(run_id, config))
         return run_id
 
@@ -98,14 +109,20 @@ class BacktestService:
                 run_id, f"Period: {config.get('start_date')} → {config.get('end_date')}"
             )
 
-            self._runs[run_id]["status"] = "running"
-            self._runs[run_id]["progress"] = 0.1
+            if self._db:
+                await self._db.update_run_status(run_id, "running", 0.1)
+            else:
+                self._runs[run_id]["status"] = "running"
+                self._runs[run_id]["progress"] = 0.1
 
             self._log(run_id, "Loading strategy...")
             strategy_class, strategy_config_class = self._load_strategy(config)
             if strategy_class is None:
                 raise ValueError(f"Strategy '{config['strategy_name']}' not found")
-            self._runs[run_id]["progress"] = 0.15
+            if self._db:
+                await self._db.update_run_status(run_id, "running", 0.15)
+            else:
+                self._runs[run_id]["progress"] = 0.15
 
             strategy_params = config.get("params", {})
             try:
@@ -116,13 +133,19 @@ class BacktestService:
                 raise ValueError(
                     f"Invalid params for '{config['strategy_name']}': {e}"
                 ) from e
-            self._runs[run_id]["progress"] = 0.2
+            if self._db:
+                await self._db.update_run_status(run_id, "running", 0.2)
+            else:
+                self._runs[run_id]["progress"] = 0.2
             self._log(run_id, "Strategy config built")
 
             initial_capital = config.get("initial_capital", "10000")
             self._log(run_id, "Creating engine...")
             engine = self._create_engine(initial_capital)
-            self._runs[run_id]["progress"] = 0.3
+            if self._db:
+                await self._db.update_run_status(run_id, "running", 0.3)
+            else:
+                self._runs[run_id]["progress"] = 0.3
 
             self._log(run_id, "Loading data...")
             instrument = self._load_data(
@@ -134,13 +157,19 @@ class BacktestService:
                 raise ValueError(
                     f"No data loaded for instrument '{config['instrument_id']}'"
                 )
-            self._runs[run_id]["progress"] = 0.4
+            if self._db:
+                await self._db.update_run_status(run_id, "running", 0.4)
+            else:
+                self._runs[run_id]["progress"] = 0.4
 
             self._log(run_id, "Adding strategy...")
 
             strategy = strategy_class(config=strategy_config)
             engine.add_strategy(strategy)
-            self._runs[run_id]["progress"] = 0.5
+            if self._db:
+                await self._db.update_run_status(run_id, "running", 0.5)
+            else:
+                self._runs[run_id]["progress"] = 0.5
 
             self._log(run_id, "Running engine (this may take a while)...")
 
@@ -165,20 +194,32 @@ class BacktestService:
                         self._log(run_id, line)
                 raise
 
-            self._runs[run_id]["progress"] = 0.8
+            if self._db:
+                await self._db.update_run_status(run_id, "running", 0.8)
+            else:
+                self._runs[run_id]["progress"] = 0.8
 
             self._log(run_id, "Extracting results...")
             results = self._extract_results(engine, run_id)
-            self._runs[run_id].update(results)
-            self._runs[run_id]["status"] = "completed"
-            self._runs[run_id]["completed_at"] = datetime.now().isoformat()
-            self._runs[run_id]["progress"] = 1.0
+
+            if self._db:
+                await self._db.update_run_results(
+                    run_id,
+                    results["metrics"],
+                    results["equity_curve"],
+                    results["trades"],
+                    results["positions"],
+                )
+                await self._db.update_run_status(run_id, "completed", 1.0)
+            else:
+                self._runs[run_id].update(results)
+                self._runs[run_id]["status"] = "completed"
+                self._runs[run_id]["completed_at"] = datetime.now().isoformat()
+                self._runs[run_id]["progress"] = 1.0
 
             sharpe = results.get("metrics", {}).get("sharpe_ratio", "N/A")
             trades = len(results.get("trades", []))
             self._log(run_id, f"Backtest complete. Sharpe: {sharpe}, Trades: {trades}")
-
-            self._prune_old_runs()
 
         except Exception as e:
             tb = traceback.format_exc()
@@ -186,9 +227,12 @@ class BacktestService:
             for line in tb.split("\n"):
                 if line.strip():
                     self._log(run_id, line.strip())
-            self._runs[run_id]["status"] = "failed"
-            self._runs[run_id]["error"] = str(e)
-            self._runs[run_id]["progress"] = 0.0
+            if self._db:
+                await self._db.update_run_status(run_id, "failed", 0.0, error=str(e))
+            else:
+                self._runs[run_id]["status"] = "failed"
+                self._runs[run_id]["error"] = str(e)
+                self._runs[run_id]["progress"] = 0.0
 
     def _run_engine(
         self,
@@ -624,8 +668,17 @@ class BacktestService:
                 df_copy[col] = df_copy[col].dt.strftime("%Y-%m-%dT%H:%M:%S")
         return df_copy.to_dict(orient="records")
 
-    def get_status(self, run_id: str) -> dict:
-        """Get current backtest status."""
+    async def get_status(self, run_id: str) -> dict:
+        if self._db:
+            run = await self._db.get_run(run_id)
+            if run is None:
+                raise KeyError(f"Run '{run_id}' not found")
+            return {
+                "run_id": run.run_id,
+                "status": run.status,
+                "progress": run.progress,
+                "error": run.error,
+            }
         run = self._runs.get(run_id)
         if run is None:
             raise KeyError(f"Backtest run {run_id} not found")
@@ -636,8 +689,28 @@ class BacktestService:
             "error": run.get("error"),
         }
 
-    def get_results(self, run_id: str) -> dict:
-        """Get backtest results (metrics, equity curve, drawdown)."""
+    async def get_results(self, run_id: str) -> dict:
+        if self._db:
+            run = await self._db.get_run(run_id)
+            if run is None:
+                raise KeyError(f"Run '{run_id}' not found")
+            equity = await self._db.get_equity_curve(run_id)
+            drawdown = self._compute_drawdown(equity)
+            return {
+                "run_id": run_id,
+                "status": run.status,
+                "metrics": {
+                    "sharpe_ratio": run.sharpe_ratio,
+                    "sortino_ratio": run.sortino_ratio,
+                    "total_pnl": run.total_pnl,
+                    "win_rate": run.win_rate,
+                    "profit_factor": run.profit_factor,
+                    "max_drawdown": run.max_drawdown,
+                    "total_trades": run.total_trades,
+                },
+                "equity_curve": equity,
+                "drawdown_curve": drawdown,
+            }
         run = self._runs.get(run_id)
         if run is None:
             raise KeyError(f"Backtest run {run_id} not found")
@@ -649,67 +722,66 @@ class BacktestService:
             "drawdown_curve": run.get("drawdown_curve", []),
         }
 
-    def get_trades(self, run_id: str) -> list[dict]:
-        """Get trade list from completed backtest (fills report)."""
+    @staticmethod
+    def _compute_drawdown(equity: list[dict]) -> list[dict]:
+        if not equity:
+            return []
+        values = [p["value"] for p in equity]
+        peak = 0
+        result = []
+        for pt, val in zip(equity, values):
+            peak = max(peak, val)
+            dd = (val - peak) / peak if peak > 0 else 0
+            result.append({"timestamp": pt["timestamp"], "value": dd})
+        return result
+
+    async def get_trades(self, run_id: str) -> list[dict]:
+        if self._db:
+            return await self._db.get_trades(run_id)
         run = self._runs.get(run_id)
         if run is None:
             raise KeyError(f"Backtest run {run_id} not found")
         return run.get("trades", [])
 
-    def get_positions(self, run_id: str) -> list[dict]:
-        """Get positions list from completed backtest."""
+    async def get_positions(self, run_id: str) -> list[dict]:
+        if self._db:
+            return await self._db.get_positions(run_id)
         run = self._runs.get(run_id)
         if run is None:
             raise KeyError(f"Backtest run {run_id} not found")
         return run.get("positions", [])
 
-    def get_fills(self, run_id: str) -> list[dict]:
-        """Get fills list from completed backtest."""
+    async def get_fills(self, run_id: str) -> list[dict]:
+        if self._db:
+            return await self._db.get_trades(run_id)
         run = self._runs.get(run_id)
         if run is None:
             raise KeyError(f"Backtest run {run_id} not found")
         return run.get("fills", [])
 
-    def delete_run(self, run_id: str):
-        """Delete backtest results from memory."""
-        if run_id in self._runs:
+    async def delete_run(self, run_id: str):
+        if self._db:
+            await self._db.delete_run(run_id)
+        elif run_id in self._runs:
             del self._runs[run_id]
         if run_id in self._logs:
             del self._logs[run_id]
-
-    def _prune_old_runs(self):
-        """Remove oldest completed runs if over MAX_RUNS limit."""
-        completed = sorted(
-            [
-                (rid, r)
-                for rid, r in self._runs.items()
-                if r.get("status") == "completed"
-            ],
-            key=lambda x: x[1].get("completed_at", ""),
-        )
-        while len(self._runs) - len(completed) + len(completed) > self.MAX_RUNS:
-            if not completed:
-                break
-            rid, _ = completed.pop(0)
-            self.delete_run(rid)
+        self._run_log_counters.pop(run_id, None)
 
     async def run_sweep(self, sweep_config: dict) -> str:
-        """Run parameter sweep.
-
-        Runs multiple backtests with different parameter values.
-        Returns sweep_id immediately; backtests run in background.
-        """
         sweep_id = str(uuid.uuid4())
-        self._sweeps[sweep_id] = {
-            "status": "running",
-            "config": sweep_config,
-            "results": [],
-        }
+        if self._db:
+            await self._db.create_sweep(sweep_id, sweep_config)
+        else:
+            self._sweeps[sweep_id] = {
+                "status": "running",
+                "config": sweep_config,
+                "results": [],
+            }
         asyncio.create_task(self._execute_sweep(sweep_id, sweep_config))
         return sweep_id
 
     async def _execute_sweep(self, sweep_id: str, config: dict):
-        """Execute parameter sweep in background."""
         param_name = config["param_name"]
         param_values = config.get("param_values", [])
         fixed_params = config.get("fixed_params", {})
@@ -732,7 +804,7 @@ class BacktestService:
 
                 while True:
                     try:
-                        status = self.get_status(run_id)
+                        status = await self.get_status(run_id)
                     except KeyError:
                         break
                     if status["status"] in ("completed", "failed"):
@@ -740,7 +812,7 @@ class BacktestService:
                     await asyncio.sleep(0.25)
 
                 if status["status"] == "completed":
-                    results = self.get_results(run_id)
+                    results = await self.get_results(run_id)
                     sweep_results.append(
                         {
                             "param_value": value,
@@ -755,21 +827,37 @@ class BacktestService:
                     }
                 )
 
-        self._sweeps[sweep_id] = {
-            "status": "completed",
-            "config": config,
-            "results": sweep_results,
-        }
+        if self._db:
+            await self._db.update_sweep(sweep_id, "completed", sweep_results)
+        else:
+            self._sweeps[sweep_id] = {
+                "status": "completed",
+                "config": config,
+                "results": sweep_results,
+            }
 
-    def get_sweep_results(self, sweep_id: str) -> list[dict]:
-        """Get parameter sweep results."""
+    async def get_sweep_results(self, sweep_id: str) -> list[dict]:
+        if self._db:
+            sweep = await self._db.get_sweep(sweep_id)
+            if sweep is None:
+                raise KeyError(f"Sweep {sweep_id} not found")
+            return sweep.get("results", [])
         sweep = self._sweeps.get(sweep_id)
         if sweep is None:
             raise KeyError(f"Sweep {sweep_id} not found")
         return sweep.get("results", [])
 
-    def get_sweep_status(self, sweep_id: str) -> dict:
-        """Get parameter sweep status."""
+    async def get_sweep_status(self, sweep_id: str) -> dict:
+        if self._db:
+            sweep = await self._db.get_sweep(sweep_id)
+            if sweep is None:
+                raise KeyError(f"Sweep {sweep_id} not found")
+            return {
+                "sweep_id": sweep_id,
+                "status": sweep["status"],
+                "total": len(sweep.get("config", {}).get("param_values", [])),
+                "completed": len(sweep.get("results", [])),
+            }
         sweep = self._sweeps.get(sweep_id)
         if sweep is None:
             raise KeyError(f"Sweep {sweep_id} not found")

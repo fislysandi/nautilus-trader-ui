@@ -47,8 +47,8 @@ async def run_backtest(config: BacktestConfig) -> BacktestRunResponse:
 async def get_backtest_status(run_id: str, since: int = 0) -> BacktestStatus:
     """Return the current status and progress of a backtest run, with logs since index."""
     try:
-        status = service.get_status(run_id)
-        logs = service.get_logs(run_id, since)
+        status = await service.get_status(run_id)
+        logs = await service.get_logs(run_id, since)
         return BacktestStatus(logs=logs, **status)
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
@@ -62,7 +62,7 @@ async def get_backtest_status(run_id: str, since: int = 0) -> BacktestStatus:
 async def get_backtest_results(run_id: str) -> BacktestResults:
     """Return the full backtest results including metrics, equity curve, and drawdown."""
     try:
-        results = service.get_results(run_id)
+        results = await service.get_results(run_id)
         return BacktestResults(**results)
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
@@ -76,7 +76,7 @@ async def get_backtest_results(run_id: str) -> BacktestResults:
 async def get_backtest_trades(run_id: str) -> list[Trade]:
     """Return all trades generated during the backtest run."""
     try:
-        return [Trade(**t) for t in service.get_trades(run_id)]
+        return [Trade(**t) for t in await service.get_trades(run_id)]
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
 
@@ -89,7 +89,7 @@ async def get_backtest_trades(run_id: str) -> list[Trade]:
 async def get_backtest_positions(run_id: str) -> list[Position]:
     """Return the position history for the backtest run."""
     try:
-        return [Position(**p) for p in service.get_positions(run_id)]
+        return [Position(**p) for p in await service.get_positions(run_id)]
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
 
@@ -102,7 +102,7 @@ async def get_backtest_positions(run_id: str) -> list[Position]:
 async def get_backtest_fills(run_id: str) -> list[dict]:
     """Return the fill report for the backtest run."""
     try:
-        return service.get_fills(run_id)
+        return await service.get_fills(run_id)
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
 
@@ -115,8 +115,8 @@ async def get_backtest_fills(run_id: str) -> list[dict]:
 async def delete_backtest(run_id: str):
     """Delete backtest results from memory."""
     try:
-        _ = service.get_status(run_id)  # raises KeyError if not found
-        service.delete_run(run_id)
+        _ = await service.get_status(run_id)  # raises KeyError if not found
+        await service.delete_run(run_id)
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
 
@@ -143,7 +143,7 @@ async def run_sweep(config: SweepConfig) -> dict:
 async def get_sweep_results(sweep_id: str) -> list[SweepResult]:
     """Return the results table for a completed parameter sweep."""
     try:
-        results = service.get_sweep_results(sweep_id)
+        results = await service.get_sweep_results(sweep_id)
         return [SweepResult(**r) for r in results]
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Sweep '{sweep_id}' not found")
