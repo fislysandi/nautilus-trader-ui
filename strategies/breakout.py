@@ -13,7 +13,7 @@ from nautilus_trader.trading.strategy import Strategy
 from nautilus_trader.config import StrategyConfig
 from nautilus_trader.model.data import OrderBookDelta
 from nautilus_trader.model.identifiers import InstrumentId
-from nautilus_trader.model.enums import OrderSide
+from nautilus_trader.model.enums import OrderSide, TimeInForce
 
 
 class BreakoutConfig(StrategyConfig, frozen=True):
@@ -112,8 +112,10 @@ class BreakoutStrategy(Strategy):
                 return
 
     def _enter(self, mid: float):
-        quantity = self._entry_quantity()
-        if quantity <= 0:
+        from nautilus_trader.model.objects import Quantity
+
+        qty_decimal = self._entry_quantity()
+        if qty_decimal <= 0:
             return
 
         self._pending = True
@@ -121,8 +123,8 @@ class BreakoutStrategy(Strategy):
             self.order_factory.market(
                 instrument_id=self.instrument_id,
                 order_side=OrderSide.BUY,
-                quantity=quantity,
-                time_in_force="IOC",
+                quantity=Quantity.from_str(str(qty_decimal)),
+                time_in_force=TimeInForce.IOC,
             )
         )
 
@@ -131,29 +133,37 @@ class BreakoutStrategy(Strategy):
             return
 
         self._pending = True
-        position = self.cache.positions(self.instrument_id)[0]
+        position = self.cache.positions(
+            venue=self.instrument_id.venue, instrument_id=self.instrument_id
+        )[0]
         self.submit_order(
             self.order_factory.market(
                 instrument_id=self.instrument_id,
                 order_side=OrderSide.SELL,
                 quantity=position.quantity,
-                time_in_force="IOC",
+                time_in_force=TimeInForce.IOC,
                 reduce_only=True,
             )
         )
 
     def _entry_quantity(self) -> Decimal:
-        free = self.cache.account(self.instrument_id.venue).balance()
-        if free is None or free.as_double() <= 0:
-            return Decimal(0)
+        from nautilus_trader.model.identifiers import AccountId
 
-        max_by_balance = free.as_double() * 0.97
-        qty = min(float(self.config.trade_size), max_by_balance)
-        return Decimal(str(round(qty, 4)))
+        venue = self.instrument_id.venue
+        venue_str = str(venue.value) if hasattr(venue, "value") else str(venue)
+        try:
+            free = self.cache.account(AccountId(f"{venue_str}-001")).balance()
+            if free is None or free.as_double() <= 0:
+                return Decimal(0)
+            max_by_balance = free.as_double() * 0.97
+            qty = min(float(self.config.trade_size), max_by_balance)
+            return Decimal(str(round(qty, 4)))
+        except Exception:
+            return Decimal(str(self.config.trade_size))
 
     def on_order_filled(self, order_fill):
         if order_fill.order_side == OrderSide.BUY:
-            self._entry_price = float(order_fill.fill_price)
+            self._entry_price = float(order_fill.last_px)
             self._in_position = True
             self._pending = False
             self.holding_periods = 0
@@ -168,8 +178,8 @@ class BreakoutStrategy(Strategy):
         self._pending = False
 
     def on_stop(self):
-        for order in self.cache.orders():
-            self.cancel_order(order.client_order_id)
+        for order in self.cache.orders(instrument_id=self.instrument_id):
+            self.cancel_order(order)
 
     def on_reset(self):
         self.prices.clear()

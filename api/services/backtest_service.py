@@ -124,7 +124,8 @@ class BacktestService:
             else:
                 self._runs[run_id]["progress"] = 0.15
 
-            strategy_params = config.get("params", {})
+            strategy_params = dict(config.get("params", {}))
+            strategy_params.setdefault("instrument_id", config.get("instrument_id", ""))
             try:
                 strategy_config = self._build_strategy_config(
                     strategy_config_class, strategy_params
@@ -251,7 +252,7 @@ class BacktestService:
             )
         )
 
-        balance = Money.from_str(f"{initial_capital} USD")
+        balance = Money.from_str(f"{initial_capital} USDC")
 
         engine.add_venue(
             venue=Venue("POLYMARKET"),
@@ -348,18 +349,22 @@ class BacktestService:
         except Exception:
             pass
 
-        # Fallback: generate synthetic trade data so backtests actually run
-        self._log(
-            run_id,
-            f"No real data found for {instrument_id_str}, generating synthetic data...",
-        )
+        # Fallback: generate synthetic OrderBookDelta data so backtests actually run
         try:
-            from nautilus_trader.model.enums import AssetClass
+            self._log(
+                run_id,
+                f"No real data found for {instrument_id_str}, generating synthetic order book data...",
+            )
+        except (NameError, AttributeError):
+            pass
+        try:
+            from nautilus_trader.model.data import OrderBookDelta, BookOrder
             from nautilus_trader.model.objects import Price, Quantity
+            from nautilus_trader.model.enums import OrderSide, BookAction, AssetClass
             from nautilus_trader.model.instruments import BinaryOption
             from nautilus_trader.model.identifiers import Symbol
+            import random
 
-            # Create instrument matching the strategy's instrument_id
             strategy_inst_id = InstrumentId.from_str(instrument_id_str)
             symbol = Symbol(
                 strategy_inst_id.symbol.value
@@ -387,13 +392,46 @@ class BacktestService:
                 ts_init=0,
             )
             engine.add_instrument(instrument)
-            self._log(
-                run_id,
-                "No real market data found — instrument created without trade data",
-            )
+
+            # Generate 500 synthetic OrderBookDelta events
+            base_ns = pd.Timestamp("2025-01-01", tz="UTC").value
+            num_deltas = 500
+            price_val = 0.50
+            deltas = []
+
+            for i in range(num_deltas):
+                price_val += random.uniform(-0.02, 0.02)
+                price_val = max(0.01, min(0.99, price_val))
+                delta = OrderBookDelta(
+                    instrument_id=strategy_inst_id,
+                    action=BookAction.ADD,
+                    order=BookOrder(
+                        OrderSide.BUY if random.random() > 0.5 else OrderSide.SELL,
+                        Price(price_val, 4),
+                        Quantity(random.randint(1, 10), 0),
+                        i,
+                    ),
+                    flags=0,
+                    sequence=i,
+                    ts_event=base_ns + i * 900_000_000_000,
+                    ts_init=base_ns + i * 900_000_000_000,
+                )
+                deltas.append(delta)
+
+            engine.add_data(deltas)
+            try:
+                self._log(
+                    run_id,
+                    f"Generated {num_deltas} synthetic OrderBookDelta events for backtest",
+                )
+            except (NameError, AttributeError):
+                pass
             return instrument
         except Exception:
-            self._log(run_id, "Failed to generate synthetic data")
+            try:
+                self._log(run_id, "Failed to generate synthetic data")
+            except (NameError, AttributeError):
+                pass
             return None
 
     def _load_strategy(self, config: dict) -> tuple[Optional[type], Optional[type]]:
