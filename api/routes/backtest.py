@@ -44,11 +44,12 @@ async def run_backtest(config: BacktestConfig) -> BacktestRunResponse:
     response_model=BacktestStatus,
     summary="Get backtest run status",
 )
-async def get_backtest_status(run_id: str) -> BacktestStatus:
-    """Return the current status and progress of a backtest run."""
+async def get_backtest_status(run_id: str, since: int = 0) -> BacktestStatus:
+    """Return the current status and progress of a backtest run, with logs since index."""
     try:
         status = service.get_status(run_id)
-        return BacktestStatus(**status)
+        logs = service.get_logs(run_id, since)
+        return BacktestStatus(logs=logs, **status)
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
 

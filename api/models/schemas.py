@@ -28,6 +28,7 @@ class BacktestStatus(BaseModel):
     status: Literal["pending", "running", "completed", "failed"]
     progress: float = 0.0
     error: str | None = None
+    logs: list[str] = []
 
 
 class BacktestMetrics(BaseModel):

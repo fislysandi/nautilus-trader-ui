@@ -7,6 +7,8 @@ from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
+from pydantic import BaseModel
+
 from api.models.schemas import StrategyDetail, StrategyInfo, StrategyParam
 from api.services.strategy_loader import StrategyLoader
 
@@ -51,6 +53,24 @@ async def get_strategy_source(name: str):
     return {"name": name, "source": source, "lines": source.count("\n") + 1}
 
 
+class StrategySourceUpdate(BaseModel):
+    source: str
+
+
+@router.put("/{name}/source")
+async def update_strategy_source(name: str, body: StrategySourceUpdate):
+    _ensure_strategy_exists(name)
+    try:
+        result = loader.save_strategy(name, body.source)
+        return {
+            "message": "Strategy saved",
+            "name": name,
+            "params": loader.get_strategy_params(name),
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @router.post("/import", status_code=201)
 async def import_strategy(file: UploadFile = File(...)):
     """Import a new strategy Python file."""
@@ -63,10 +83,15 @@ async def import_strategy(file: UploadFile = File(...)):
 
     try:
         result = loader.import_strategy(str(tmp_path))
-        return {"message": "Strategy imported", "name": result.get("name", file.filename)}
+        return {
+            "message": "Strategy imported",
+            "name": result.get("name", file.filename),
+        }
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception:
-        raise HTTPException(status_code=500, detail="Internal server error importing strategy")
+        raise HTTPException(
+            status_code=500, detail="Internal server error importing strategy"
+        )
     finally:
         tmp_path.unlink(missing_ok=True)

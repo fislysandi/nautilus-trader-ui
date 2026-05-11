@@ -24,8 +24,6 @@ class StrategyLoader:
         if str(self.strategies_dir.parent) not in sys.path:
             sys.path.insert(0, str(self.strategies_dir.parent))
 
-
-
     def list_strategies(self) -> list[dict]:
         """
         List all discovered strategies.
@@ -124,6 +122,47 @@ class StrategyLoader:
 
         return None
 
+    def _has_config_class(self, node: ast.AST) -> bool:
+        """Check if a class node has bases that look like StrategyConfig."""
+        if not isinstance(node, ast.ClassDef):
+            return False
+        return self._is_config_class_heuristic(node)
+
+    def save_strategy(self, name: str, source: str) -> dict:
+        file_path = self._find_strategy_file(name)
+        if file_path is None:
+            raise ValueError(f"Strategy '{name}' not found")
+
+        try:
+            tree = ast.parse(source)
+        except SyntaxError as e:
+            raise ValueError(f"Invalid Python syntax: {e}")
+
+        has_strategy = any(
+            self._is_strategy_node(node) or self._has_config_class(node)
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ClassDef)
+        )
+        if not has_strategy:
+            raise ValueError(
+                "Source must contain a Strategy subclass with a StrategyConfig"
+            )
+
+        file_path.write_text(source)
+
+        metadata = self._parse_strategy_metadata(file_path)
+
+        module_name = file_path.stem
+        if module_name in sys.modules:
+            del sys.modules[module_name]
+
+        return metadata or {"name": name, "file_path": str(file_path)}
+
+    def _is_strategy_node(self, node: ast.AST) -> bool:
+        if not isinstance(node, ast.ClassDef):
+            return False
+        return self._is_strategy_class_heuristic(node)
+
     def import_strategy(self, file_path: str) -> dict:
         """
         Copy a .py file into the strategies directory.
@@ -141,18 +180,18 @@ class StrategyLoader:
         metadata = self._parse_strategy_metadata(dest)
         if metadata is None:
             dest.unlink(missing_ok=True)
-            raise ValueError("File does not appear to contain a valid nautilus_trader strategy")
+            raise ValueError(
+                "File does not appear to contain a valid nautilus_trader strategy"
+            )
 
         return metadata
-
 
     def _discover_strategy_files(self) -> list[Path]:
         """Find all .py files in the strategies directory, excluding __init__.py."""
         if not self.strategies_dir.exists():
             return []
         return sorted(
-            p for p in self.strategies_dir.glob("*.py")
-            if p.name != "__init__.py"
+            p for p in self.strategies_dir.glob("*.py") if p.name != "__init__.py"
         )
 
     def _find_strategy_file(self, name: str) -> Optional[Path]:
@@ -184,6 +223,7 @@ class StrategyLoader:
         """Check if a class inherits from nautilus_trader Strategy."""
         try:
             from nautilus_trader.trading.strategy import Strategy
+
             return issubclass(cls, Strategy) and cls is not Strategy
         except ImportError:
             return False
@@ -223,7 +263,9 @@ class StrategyLoader:
     def _find_strategy_class(self, tree: ast.AST) -> Optional[ast.ClassDef]:
         """Find the Strategy subclass in the AST."""
         for node in ast.walk(tree):
-            if isinstance(node, ast.ClassDef) and self._is_strategy_class_heuristic(node):
+            if isinstance(node, ast.ClassDef) and self._is_strategy_class_heuristic(
+                node
+            ):
                 return node
         return None
 
@@ -307,12 +349,14 @@ class StrategyLoader:
                 if resolved_type == "unknown":
                     resolved_type = "str"
 
-                params.append({
-                    "name": name,
-                    "type": resolved_type,
-                    "default": default,
-                    "description": self._extract_doc_for_field(name, config_class),
-                })
+                params.append(
+                    {
+                        "name": name,
+                        "type": resolved_type,
+                        "default": default,
+                        "description": self._extract_doc_for_field(name, config_class),
+                    }
+                )
 
             # Assignment without annotation: x = 5 (also valid in some configs)
             elif isinstance(node, ast.Assign):
@@ -320,12 +364,18 @@ class StrategyLoader:
                     if isinstance(target, ast.Name):
                         name = target.id
                         val, inferred_type = self._ast_default_to_value(node.value)
-                        params.append({
-                            "name": name,
-                            "type": inferred_type if inferred_type != "unknown" else "str",
-                            "default": val,
-                            "description": self._extract_doc_for_field(name, config_class),
-                        })
+                        params.append(
+                            {
+                                "name": name,
+                                "type": inferred_type
+                                if inferred_type != "unknown"
+                                else "str",
+                                "default": val,
+                                "description": self._extract_doc_for_field(
+                                    name, config_class
+                                ),
+                            }
+                        )
 
         return params
 
@@ -337,7 +387,9 @@ class StrategyLoader:
             return node.target.attr
         return None
 
-    def _extract_doc_for_field(self, field_name: str, config_class: ast.ClassDef) -> str:
+    def _extract_doc_for_field(
+        self, field_name: str, config_class: ast.ClassDef
+    ) -> str:
         """Try to extract a docstring comment preceding or near a field."""
         # For now, return empty — field-level docstrings are not standard in nautilus configs.
         # Could be extended to parse inline comments.

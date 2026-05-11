@@ -8,8 +8,11 @@ manage parameter sweeps.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import inspect
+import io
 import uuid
+from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Optional
@@ -38,6 +41,19 @@ class BacktestService:
         self.strategies_dir = Path(strategies_dir).resolve()
         self._runs: dict[str, dict] = {}
         self._sweeps: dict[str, dict] = {}
+        self._logs: dict[str, list[str]] = {}  # run_id → log lines
+
+    def _log(self, run_id: str, message: str):
+        """Append a timestamped log line to the run's log buffer."""
+        if run_id not in self._logs:
+            self._logs[run_id] = []
+        timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+        self._logs[run_id].append(f"[{timestamp}] {message}")
+
+    def get_logs(self, run_id: str, since: int = 0) -> list[str]:
+        """Get log lines from a run, optionally since an index."""
+        lines = self._logs.get(run_id, [])
+        return lines[since:]
 
     async def run_backtest(self, config: dict) -> str:
         """Start a backtest asynchronously.
@@ -72,9 +88,17 @@ class BacktestService:
         executor, extract metrics and trade records.
         """
         try:
+            self._log(run_id, "Starting backtest...")
+            self._log(run_id, f"Strategy: {config.get('strategy_name')}")
+            self._log(run_id, f"Instrument: {config.get('instrument_id')}")
+            self._log(
+                run_id, f"Period: {config.get('start_date')} → {config.get('end_date')}"
+            )
+
             self._runs[run_id]["status"] = "running"
             self._runs[run_id]["progress"] = 0.1
 
+            self._log(run_id, "Loading strategy...")
             strategy_class, strategy_config_class = self._load_strategy(config)
             if strategy_class is None:
                 raise ValueError(f"Strategy '{config['strategy_name']}' not found")
@@ -90,11 +114,14 @@ class BacktestService:
                     f"Invalid params for '{config['strategy_name']}': {e}"
                 ) from e
             self._runs[run_id]["progress"] = 0.2
+            self._log(run_id, "Strategy config built")
 
             initial_capital = config.get("initial_capital", "10000")
+            self._log(run_id, "Creating engine...")
             engine = self._create_engine(initial_capital)
             self._runs[run_id]["progress"] = 0.3
 
+            self._log(run_id, "Loading data...")
             instrument = self._load_data(
                 engine,
                 config.get("instrument_id", ""),
@@ -105,26 +132,51 @@ class BacktestService:
                 )
             self._runs[run_id]["progress"] = 0.4
 
+            self._log(run_id, "Adding strategy...")
             strategy = strategy_class(config=strategy_config)
             engine.add_strategy(strategy)
             self._runs[run_id]["progress"] = 0.5
 
+            self._log(run_id, "Running engine (this may take a while)...")
             loop = asyncio.get_running_loop()
-            await loop.run_in_executor(
-                None,
-                self._run_engine,
-                engine,
-                config.get("start_date"),
-                config.get("end_date"),
-            )
+
+            log_buffer = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(log_buffer):
+                    with contextlib.redirect_stderr(log_buffer):
+                        await loop.run_in_executor(
+                            None,
+                            self._run_engine,
+                            engine,
+                            config.get("start_date"),
+                            config.get("end_date"),
+                        )
+
+                engine_output = log_buffer.getvalue()
+                for line in engine_output.strip().split("\n"):
+                    if line.strip():
+                        self._log(run_id, line)
+            except Exception:
+                engine_output = log_buffer.getvalue()
+                for line in engine_output.strip().split("\n"):
+                    if line.strip():
+                        self._log(run_id, line)
+                raise
+
             self._runs[run_id]["progress"] = 0.8
 
+            self._log(run_id, "Extracting results...")
             results = self._extract_results(engine, run_id)
             self._runs[run_id].update(results)
             self._runs[run_id]["status"] = "completed"
             self._runs[run_id]["progress"] = 1.0
 
+            sharpe = results.get("metrics", {}).get("sharpe_ratio", "N/A")
+            trades = len(results.get("trades", []))
+            self._log(run_id, f"Backtest complete. Sharpe: {sharpe}, Trades: {trades}")
+
         except Exception as e:
+            self._log(run_id, f"ERROR: {e}")
             self._runs[run_id]["status"] = "failed"
             self._runs[run_id]["error"] = str(e)
             self._runs[run_id]["progress"] = 0.0
@@ -416,7 +468,7 @@ class BacktestService:
         analyzer,
         stats_returns: dict,
     ) -> list[dict]:
-        """Build equity curve from daily returns as list of {timestamp, equity} dicts."""
+        """Build equity curve from daily returns as list of {timestamp, value} dicts."""
         returns = stats_returns.get("Returns (Daily)", None)
         if returns is None:
             return []
@@ -439,7 +491,7 @@ class BacktestService:
                 points.append(
                     {
                         "timestamp": ts_str,
-                        "equity": float(val),
+                        "value": float(val),
                     }
                 )
             return points
@@ -452,7 +504,7 @@ class BacktestService:
             return []
 
         try:
-            values = [p["equity"] for p in equity_curve]
+            values = [p["value"] for p in equity_curve]
             if not values:
                 return []
 
@@ -465,7 +517,7 @@ class BacktestService:
                 points.append(
                     {
                         "timestamp": pt["timestamp"],
-                        "drawdown": dd,
+                        "value": dd,
                     }
                 )
             return points
