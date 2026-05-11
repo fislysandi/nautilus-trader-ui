@@ -419,14 +419,15 @@ const btnPrimary: React.CSSProperties = {
   fontSize: '14px', fontWeight: 500, cursor: 'pointer',
 };
 
-const sidebarBtnStyle: React.CSSProperties = {
-  display: 'block', width: '100%', padding: '6px 12px', marginBottom: '4px',
-  background: 'transparent', color: 'var(--md-sys-color-on-surface-variant)',
-  border: '1px solid var(--md-sys-color-outline-variant)', borderRadius: '6px',
-  fontSize: '12px', fontWeight: 500, cursor: 'pointer', textAlign: 'left',
+const actionBtnStyle: React.CSSProperties = {
+  display: 'block', width: '100%', padding: '12px 16px',
+  background: 'var(--md-sys-color-surface-container)',
+  color: 'var(--md-sys-color-on-surface)',
+  border: '1px dashed var(--md-sys-color-outline)', borderRadius: '8px',
+  fontSize: '14px', fontWeight: 500, cursor: 'pointer', textAlign: 'center',
 };
 
-const actionBtnStyle: React.CSSProperties = {
+export default Settings;
   display: 'block', width: '100%', padding: '12px 16px',
   background: 'var(--md-sys-color-surface-container)',
   color: 'var(--md-sys-color-on-surface)',
