@@ -105,6 +105,56 @@ const SETTINGS_SECTIONS: SettingSection[] = [
       },
     ],
   },
+  {
+    title: 'Bybit',
+    description: 'Bybit exchange API credentials and trading configuration',
+    fields: [
+      {
+        key: 'bybitApiKey',
+        label: 'Bybit API Key',
+        type: 'password',
+        placeholder: 'Enter your Bybit API key',
+        description: 'API key with trading and data permissions',
+      },
+      {
+        key: 'bybitSecret',
+        label: 'Bybit Secret',
+        type: 'password',
+        placeholder: 'Enter your Bybit secret key',
+        description: 'API secret for request signing',
+      },
+      {
+        key: 'bybitEnvironment',
+        label: 'Environment',
+        type: 'select',
+        options: [
+          { value: 'MAINNET', label: 'Mainnet (Production)' },
+          { value: 'TESTNET', label: 'Testnet (Paper Trading)' },
+          { value: 'DEMO', label: 'Demo' },
+        ],
+        description: 'Bybit environment — use Testnet for paper trading',
+      },
+      {
+        key: 'bybitProductType',
+        label: 'Product Type',
+        type: 'select',
+        options: [
+          { value: 'LINEAR', label: 'Linear (USDT Perpetuals)' },
+          { value: 'SPOT', label: 'Spot' },
+          { value: 'INVERSE', label: 'Inverse (Coin-M)' },
+          { value: 'OPTION', label: 'Options' },
+        ],
+        description: 'Derivatives product type to trade',
+      },
+      {
+        key: 'bybitMaxLeverage',
+        label: 'Max Leverage',
+        type: 'number',
+        placeholder: '10',
+        description: 'Maximum leverage for futures positions',
+      },
+    ],
+  },
 ];
 
 const STORAGE_PREFIX = 'nt_';
