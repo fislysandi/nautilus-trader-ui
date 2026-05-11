@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTradingStore } from '../stores/trading';
 import type { StrategyParam, SweepResult } from '../api/client';
 import { runSweep, getSweepResults, getBacktestStatus } from '../api/client';
@@ -27,6 +27,10 @@ function Backtest() {
   const [progress, setProgress] = useState(0);
   const [paramValues, setParamValues] = useState<Record<string, string>>({});
   const [paramsLoading, setParamsLoading] = useState(false);
+  const [instrument, setInstrument] = useState('BTC-15M-UP.POLYMARKET');
+  const [capital, setCapital] = useState('10000');
+  const [startDate, setStartDate] = useState('2025-01-01');
+  const [endDate, setEndDate] = useState('2025-06-01');
 
   const [sweepMode, setSweepMode] = useState(false);
   const [sweepParam, setSweepParam] = useState('');
@@ -36,6 +40,7 @@ function Backtest() {
   const [sweepResults, setSweepResults] = useState<SweepResult[]>([]);
   const [logs, setLogs] = useState<string[]>([]);
   const [showLogs, setShowLogs] = useState(false);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetchStrategies();
@@ -64,8 +69,20 @@ function Backtest() {
     });
   }, [selectedStrategy]);
 
+  function validateForm(): boolean {
+    const errors: Record<string, string> = {};
+    if (!selectedStrategy) errors.strategy = 'Select a strategy';
+    if (!startDate) errors.startDate = 'Start date is required';
+    if (!endDate) errors.endDate = 'End date is required';
+    if (startDate && endDate && startDate > endDate) errors.dates = 'Start must be before end';
+    if (!capital || isNaN(Number(capital)) || Number(capital) <= 0) errors.capital = 'Enter a positive number';
+    if (!instrument) errors.instrument = 'Select an instrument';
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  }
+
   const handleRun = async () => {
-    if (!selectedStrategy) return;
+    if (!validateForm()) return;
     setError(null);
     setView('running');
     setProgress(0);
@@ -74,10 +91,10 @@ function Backtest() {
     try {
       const runId = await runBacktest({
         strategy_name: selectedStrategy,
-        instrument_id: 'BTC-15M-UP.POLYMARKET',
-        start_date: '2025-01-01',
-        end_date: '2025-06-01',
-        initial_capital: '10000',
+        instrument_id: instrument,
+        start_date: startDate,
+        end_date: endDate,
+        initial_capital: capital,
         params: Object.fromEntries(
           Object.entries(paramValues).map(([k, v]) => {
             const num = Number(v);
@@ -110,7 +127,8 @@ function Backtest() {
   };
 
   const handleRunSweep = async () => {
-    if (!selectedStrategy || !sweepParam) return;
+    if (!sweepParam) { setFormErrors({ sweep: 'Select a parameter to sweep' }); return; }
+    if (!validateForm()) return;
     setError(null);
     setView('running');
     setProgress(0);
@@ -121,16 +139,17 @@ function Backtest() {
       const max = parseFloat(sweepMax);
       const step = parseFloat(sweepStep);
       const values: number[] = [];
-      for (let v = min; v <= max + step * 0.5; v += step) {
-        values.push(Math.round(v * 1000) / 1000);
+      const steps = Math.round((max - min) / step);
+      for (let i = 0; i <= steps; i++) {
+        values.push(Math.round((min + i * step) * 1000) / 1000);
       }
 
       const response = await runSweep({
         strategy_name: selectedStrategy,
-        instrument_id: 'BTC-15M-UP.POLYMARKET',
-        start_date: '2025-01-01',
-        end_date: '2025-06-01',
-        initial_capital: '10000',
+        instrument_id: instrument,
+        start_date: startDate,
+        end_date: endDate,
+        initial_capital: capital,
         param_name: sweepParam,
         param_values: values,
         fixed_params: Object.fromEntries(
@@ -185,31 +204,34 @@ function Backtest() {
                 <option key={s.name} value={s.name}>{s.name}</option>
               ))}
             </select>
+            {formErrors.strategy && <p style={{ color: 'var(--semantic-danger)', fontSize: '12px', marginTop: '2px' }}>{formErrors.strategy}</p>}
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
             <div>
               <label className="metric-label" style={{ marginBottom: '4px', display: 'block' }}>Instrument</label>
-              <select style={inputStyle} defaultValue="BTC-15M-UP.POLYMARKET">
+              <select style={inputStyle} value={instrument} onChange={(e) => setInstrument(e.target.value)}>
                 <option>BTC-15M-UP.POLYMARKET</option>
               </select>
             </div>
             <div>
               <label className="metric-label" style={{ marginBottom: '4px', display: 'block' }}>Initial Capital</label>
-              <input type="text" defaultValue="10000" style={inputStyle} />
+              <input type="text" value={capital} onChange={(e) => setCapital(e.target.value)} style={inputStyle} />
+              {formErrors.capital && <p style={{ color: 'var(--semantic-danger)', fontSize: '12px', marginTop: '2px' }}>{formErrors.capital}</p>}
             </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
             <div>
               <label className="metric-label" style={{ marginBottom: '4px', display: 'block' }}>Start Date</label>
-              <input type="date" defaultValue="2025-01-01" style={inputStyle} />
+              <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} style={inputStyle} />
             </div>
             <div>
               <label className="metric-label" style={{ marginBottom: '4px', display: 'block' }}>End Date</label>
-              <input type="date" defaultValue="2025-06-01" style={inputStyle} />
+              <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} style={inputStyle} />
             </div>
           </div>
+          {formErrors.dates && <p style={{ color: 'var(--semantic-danger)', fontSize: '12px', marginTop: '2px' }}>{formErrors.dates}</p>}
 
           {paramsLoading && (
             <div style={{ marginBottom: '16px', color: 'var(--md-sys-color-on-surface-variant)', fontSize: '13px' }}>
@@ -247,6 +269,7 @@ function Backtest() {
                         </option>
                       ))}
                     </select>
+                    {formErrors.sweep && <p style={{ color: 'var(--semantic-danger)', fontSize: '12px', marginTop: '2px' }}>{formErrors.sweep}</p>}
                   </div>
                   <div
                     style={{
@@ -456,7 +479,7 @@ function Backtest() {
                 { key: 'size', label: 'Size', sortable: true, numeric: true },
                 { key: 'entry_price', label: 'Entry', sortable: true, numeric: true },
                 { key: 'exit_price', label: 'Exit', sortable: true, numeric: true },
-                { key: 'pnl', label: 'PnL', sortable: true, numeric: true,
+                { key: 'pnl', label: 'PnL', sortable: true, numeric: true, semantic: true,
                   render: (val: unknown) => {
                     const numVal = val as number;
                     return (
