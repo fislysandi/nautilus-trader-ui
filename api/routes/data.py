@@ -71,7 +71,6 @@ async def list_instruments() -> list[Instrument]:
     summary="Get instrument details",
 )
 async def get_instrument(instrument_id: str) -> Instrument:
-    """Return details for a single instrument by ID."""
     inst = INSTRUMENTS.get(instrument_id)
     if inst is None:
         raise HTTPException(

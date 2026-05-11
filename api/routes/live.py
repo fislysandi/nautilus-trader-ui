@@ -44,7 +44,6 @@ async def _get_status() -> tuple[str, str | None]:
     summary="Get live trading node status",
 )
 async def get_live_status() -> LiveStatus:
-    """Return the current state of the live trading node."""
     status, started_at = await _get_status()
     uptime = 0.0
     if started_at:
@@ -68,7 +67,6 @@ async def get_live_status() -> LiveStatus:
     summary="Get current positions",
 )
 async def get_live_positions() -> list[Position]:
-    """Return all open positions in the live account."""
     status, _ = await _get_status()
     if status == "stopped":
         return []
@@ -98,7 +96,6 @@ async def get_live_positions() -> list[Position]:
     summary="Get open / pending orders",
 )
 async def get_live_orders() -> list[Order]:
-    """Return all open and pending orders."""
     status, _ = await _get_status()
     if status == "stopped":
         return []
@@ -120,7 +117,6 @@ async def get_live_orders() -> list[Order]:
     summary="Get account balance",
 )
 async def get_live_account() -> AccountBalance:
-    """Return current account balance and margin usage."""
     return AccountBalance(
         total_balance=1245.50,
         available_balance=1180.00,
@@ -135,7 +131,6 @@ async def get_live_account() -> AccountBalance:
     summary="Get account PnL history",
 )
 async def get_account_history() -> list[dict]:
-    """Return the account equity / PnL history."""
     return []
 
 
@@ -145,7 +140,6 @@ async def get_account_history() -> list[dict]:
     summary="Start the live trading node",
 )
 async def start_live() -> LiveStatus:
-    """Start the live trading node."""
     now = datetime.now().isoformat()
     if _db:
         await _db.set_state("live_status", "running")
@@ -170,7 +164,6 @@ async def start_live() -> LiveStatus:
     summary="Stop the live trading node",
 )
 async def stop_live() -> LiveStatus:
-    """Gracefully stop the live trading node."""
     if _db:
         await _db.set_state("live_status", "stopped")
         await _db.set_state("live_started_at", "")

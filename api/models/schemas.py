@@ -7,8 +7,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, field_validator
 
-
-# ── Backtest ────────────────────────────────────────────────────────────────
+# Backtest
 
 
 class BacktestConfig(BaseModel):
@@ -127,7 +126,7 @@ class SweepResult(BaseModel):
     metrics: BacktestMetrics
 
 
-# ── Strategies ──────────────────────────────────────────────────────────────
+# Strategies
 
 
 class StrategyInfo(BaseModel):
@@ -152,7 +151,7 @@ class StrategyDetail(BaseModel):
     backtest_count: int = 0
 
 
-# ── Live ────────────────────────────────────────────────────────────────────
+# Live
 
 
 class LiveStatus(BaseModel):
@@ -169,7 +168,7 @@ class AccountBalance(BaseModel):
     margin_usage_pct: float = 0.0
 
 
-# ── Data ────────────────────────────────────────────────────────────────────
+# Data
 
 
 class Instrument(BaseModel):

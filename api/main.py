@@ -55,7 +55,7 @@ async def health_check():
     if strategies_dir.exists():
         py_files = list(strategies_dir.glob("*.py"))
         non_init = [f for f in py_files if f.name != "__init__.py"]
-        checks["strategies_dir"] = "ok" if strategies_dir.exists() else "missing"
+        checks["strategies_dir"] = "ok"
         checks["strategy_files"] = len(non_init)
         if not non_init:
             checks["strategies"] = "warning: no strategy files found"

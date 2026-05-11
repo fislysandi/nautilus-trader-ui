@@ -35,20 +35,31 @@ class BacktestRun(Base):
     total_trades: Mapped[int] = mapped_column(default=0)
 
     completed_at: Mapped[Optional[str]]
-    created_at: Mapped[str] = mapped_column(default=lambda: datetime.now(timezone.utc).isoformat())
-    updated_at: Mapped[str] = mapped_column(default=lambda: datetime.now(timezone.utc).isoformat())
+    created_at: Mapped[str] = mapped_column(
+        default=lambda: datetime.now(timezone.utc).isoformat()
+    )
+    updated_at: Mapped[str] = mapped_column(
+        default=lambda: datetime.now(timezone.utc).isoformat()
+    )
 
-    # Relationships
-    equity_points = relationship("EquityPoint", back_populates="run", cascade="all, delete-orphan")
+    equity_points = relationship(
+        "EquityPoint", back_populates="run", cascade="all, delete-orphan"
+    )
     trades = relationship("Trade", back_populates="run", cascade="all, delete-orphan")
-    positions = relationship("Position", back_populates="run", cascade="all, delete-orphan")
-    logs = relationship("BacktestLog", back_populates="run", cascade="all, delete-orphan")
+    positions = relationship(
+        "Position", back_populates="run", cascade="all, delete-orphan"
+    )
+    logs = relationship(
+        "BacktestLog", back_populates="run", cascade="all, delete-orphan"
+    )
 
 
 class EquityPoint(Base):
     __tablename__ = "equity_points"
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    run_id: Mapped[str] = mapped_column(ForeignKey("backtest_runs.run_id", ondelete="CASCADE"))
+    run_id: Mapped[str] = mapped_column(
+        ForeignKey("backtest_runs.run_id", ondelete="CASCADE")
+    )
     timestamp: Mapped[str]
     value: Mapped[float]
     run = relationship("BacktestRun", back_populates="equity_points")
@@ -57,7 +68,9 @@ class EquityPoint(Base):
 class Trade(Base):
     __tablename__ = "trades"
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    run_id: Mapped[str] = mapped_column(ForeignKey("backtest_runs.run_id", ondelete="CASCADE"))
+    run_id: Mapped[str] = mapped_column(
+        ForeignKey("backtest_runs.run_id", ondelete="CASCADE")
+    )
     entry_time: Mapped[str]
     exit_time: Mapped[Optional[str]]
     side: Mapped[str]
@@ -72,7 +85,9 @@ class Trade(Base):
 class Position(Base):
     __tablename__ = "positions"
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    run_id: Mapped[str] = mapped_column(ForeignKey("backtest_runs.run_id", ondelete="CASCADE"))
+    run_id: Mapped[str] = mapped_column(
+        ForeignKey("backtest_runs.run_id", ondelete="CASCADE")
+    )
     instrument_id: Mapped[str]
     side: Mapped[str]
     quantity: Mapped[float]
@@ -87,14 +102,20 @@ class Sweep(Base):
     sweep_id: Mapped[str] = mapped_column(primary_key=True)
     config: Mapped[dict] = mapped_column(JSON)
     status: Mapped[str] = mapped_column(default="running")
-    created_at: Mapped[str] = mapped_column(default=lambda: datetime.now(timezone.utc).isoformat())
-    results = relationship("SweepResult", back_populates="sweep", cascade="all, delete-orphan")
+    created_at: Mapped[str] = mapped_column(
+        default=lambda: datetime.now(timezone.utc).isoformat()
+    )
+    results = relationship(
+        "SweepResult", back_populates="sweep", cascade="all, delete-orphan"
+    )
 
 
 class SweepResult(Base):
     __tablename__ = "sweep_results"
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    sweep_id: Mapped[str] = mapped_column(ForeignKey("sweeps.sweep_id", ondelete="CASCADE"))
+    sweep_id: Mapped[str] = mapped_column(
+        ForeignKey("sweeps.sweep_id", ondelete="CASCADE")
+    )
     param_value: Mapped[str]
     metrics: Mapped[Optional[dict]] = mapped_column(JSON, default=None)
     sweep = relationship("Sweep", back_populates="results")
@@ -103,7 +124,9 @@ class SweepResult(Base):
 class BacktestLog(Base):
     __tablename__ = "backtest_logs"
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    run_id: Mapped[str] = mapped_column(ForeignKey("backtest_runs.run_id", ondelete="CASCADE"))
+    run_id: Mapped[str] = mapped_column(
+        ForeignKey("backtest_runs.run_id", ondelete="CASCADE")
+    )
     line_number: Mapped[int]
     message: Mapped[str]
     run = relationship("BacktestRun", back_populates="logs")
@@ -114,4 +137,6 @@ class SystemState(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     key: Mapped[str] = mapped_column(String(255), unique=True)
     value: Mapped[str]
-    updated_at: Mapped[str] = mapped_column(default=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at: Mapped[str] = mapped_column(
+        default=lambda: datetime.now(timezone.utc).isoformat()
+    )

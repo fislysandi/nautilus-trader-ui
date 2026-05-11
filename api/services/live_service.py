@@ -2,6 +2,4 @@
 
 
 class LiveService:
-    """Manages live trading node lifecycle."""
-
     pass

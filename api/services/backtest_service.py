@@ -251,7 +251,6 @@ class BacktestService:
         start_date: Optional[str],
         end_date: Optional[str],
     ):
-        """Run the engine synchronously."""
         engine.run()
 
     def _create_engine(self, initial_capital: str) -> BacktestEngine:
@@ -360,13 +359,10 @@ class BacktestService:
             pass
 
         # Fallback: generate synthetic OrderBookDelta data so backtests actually run
-        try:
-            self._log(
-                run_id,
-                f"No real data found for {instrument_id_str}, generating synthetic order book data...",
-            )
-        except (NameError, AttributeError):
-            pass
+        self._log(
+            run_id,
+            f"No real data found for {instrument_id_str}, generating synthetic order book data...",
+        )
         try:
             from nautilus_trader.model.data import OrderBookDelta, BookOrder
             from nautilus_trader.model.objects import Price, Quantity
@@ -403,7 +399,6 @@ class BacktestService:
             )
             engine.add_instrument(instrument)
 
-            # Generate 2000 synthetic OrderBookDelta events
             base_ns = pd.Timestamp("2025-01-01", tz="UTC").value
             num_deltas = 2000
             price_val = 0.50
@@ -429,23 +424,16 @@ class BacktestService:
                 deltas.append(delta)
 
             engine.add_data(deltas)
-            try:
-                self._log(
-                    run_id,
-                    f"Generated {num_deltas} synthetic OrderBookDelta events for backtest",
-                )
-            except (NameError, AttributeError):
-                pass
+            self._log(
+                run_id,
+                f"Generated {num_deltas} synthetic OrderBookDelta events for backtest",
+            )
             return instrument
         except Exception:
-            try:
-                self._log(run_id, "Failed to generate synthetic data")
-            except (NameError, AttributeError):
-                pass
+            self._log(run_id, "Failed to generate synthetic data")
             return None
 
     def _load_strategy(self, config: dict) -> tuple[Optional[type], Optional[type]]:
-        """Load strategy class and its config class."""
         from api.services.strategy_loader import StrategyLoader
 
         loader = StrategyLoader(strategies_dir=str(self.strategies_dir))
@@ -706,7 +694,6 @@ class BacktestService:
             return []
 
     def _get_drawdown_curve(self, equity_curve: list[dict]) -> list[dict]:
-        """Calculate drawdown series from equity curve."""
         if not equity_curve:
             return []
 
@@ -732,7 +719,6 @@ class BacktestService:
             return []
 
     def _extract_fills(self, engine: BacktestEngine) -> list[dict]:
-        """Extract trade/fill records from engine."""
         try:
             fills_df = engine.trader.generate_fills_report()
             if fills_df.empty:
@@ -761,7 +747,6 @@ class BacktestService:
             return []
 
     def _extract_positions(self, engine: BacktestEngine) -> list[dict]:
-        """Extract position records from engine."""
         try:
             positions_df = engine.trader.generate_positions_report()
             if positions_df.empty:
@@ -785,7 +770,6 @@ class BacktestService:
 
     @staticmethod
     def _safe_float(value: Any) -> Optional[float]:
-        """Convert a value to float, returning None on failure."""
         if value is None:
             return None
         try:
@@ -795,7 +779,6 @@ class BacktestService:
 
     @staticmethod
     def _to_series(returns: Any) -> "pd.Series":
-        """Convert returns data to a pandas Series."""
         if isinstance(returns, pd.Series):
             return returns
         try:
@@ -904,7 +887,6 @@ class BacktestService:
         return run.get("fills", [])
 
     async def cancel_backtest(self, run_id: str):
-        """Cancel a running backtest by cancelling its asyncio task."""
         task = self._tasks.pop(run_id, None)
         if task is not None and not task.done():
             task.cancel()

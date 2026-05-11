@@ -13,7 +13,6 @@ _session_factory = None
 
 
 def get_engine():
-    """Get or create the async SQLAlchemy engine."""
     global _engine
     if _engine is None:
         _engine = create_async_engine(
@@ -26,7 +25,6 @@ def get_engine():
 
 
 def get_session_factory():
-    """Get or create the async session factory."""
     global _session_factory
     if _session_factory is None:
         _session_factory = async_sessionmaker(
@@ -47,7 +45,6 @@ async def init_db():
 
 
 async def close_db():
-    """Dispose the engine and release connections."""
     global _engine, _session_factory
     if _engine is not None:
         await _engine.dispose()

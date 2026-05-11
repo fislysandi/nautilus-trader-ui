@@ -88,7 +88,6 @@ class StrategyLoader:
         return self._extract_config_fields(config_class)
 
     def get_strategy_source(self, name: str) -> Optional[str]:
-        """Get the raw source code of a strategy file."""
         file_path = self._find_strategy_file(name)
         if file_path is None:
             return None
@@ -98,7 +97,6 @@ class StrategyLoader:
             return None
 
     def load_strategy_class(self, name: str) -> Optional[type]:
-        """Dynamically import and return the strategy class."""
         file_path = self._find_strategy_file(name)
         if file_path is None:
             return None
@@ -123,12 +121,6 @@ class StrategyLoader:
 
         return None
 
-    def _has_config_class(self, node: ast.AST) -> bool:
-        """Check if a class node has bases that look like StrategyConfig."""
-        if not isinstance(node, ast.ClassDef):
-            return False
-        return self._is_config_class_heuristic(node)
-
     def save_strategy(self, name: str, source: str) -> dict:
         file_path = self._find_strategy_file(name)
         if file_path is None:
@@ -140,7 +132,8 @@ class StrategyLoader:
             raise ValueError(f"Invalid Python syntax: {e}")
 
         has_strategy = any(
-            self._is_strategy_node(node) or self._has_config_class(node)
+            self._is_strategy_class_heuristic(node)
+            or self._is_config_class_heuristic(node)
             for node in ast.walk(tree)
             if isinstance(node, ast.ClassDef)
         )
@@ -160,11 +153,6 @@ class StrategyLoader:
         importlib.invalidate_caches()
 
         return metadata or {"name": name, "file_path": str(file_path)}
-
-    def _is_strategy_node(self, node: ast.AST) -> bool:
-        if not isinstance(node, ast.ClassDef):
-            return False
-        return self._is_strategy_class_heuristic(node)
 
     def import_strategy(self, file_path: str) -> dict:
         """
@@ -223,7 +211,6 @@ class StrategyLoader:
         return "strategies." + "_".join(parts)
 
     def _is_strategy_class(self, cls: type) -> bool:
-        """Check if a class inherits from nautilus_trader Strategy."""
         try:
             from nautilus_trader.trading.strategy import Strategy
 
@@ -248,7 +235,6 @@ class StrategyLoader:
         return False
 
     def _is_strategy_class_heuristic(self, cls: ast.ClassDef) -> bool:
-        """Check if an AST class looks like it inherits from Strategy."""
         for base in cls.bases:
             if isinstance(base, ast.Attribute) and base.attr == "Strategy":
                 return True
@@ -257,14 +243,12 @@ class StrategyLoader:
         return False
 
     def _find_config_class(self, tree: ast.AST) -> Optional[ast.ClassDef]:
-        """Find the StrategyConfig subclass in the AST."""
         for node in ast.walk(tree):
             if isinstance(node, ast.ClassDef) and self._is_config_class_heuristic(node):
                 return node
         return None
 
     def _find_strategy_class(self, tree: ast.AST) -> Optional[ast.ClassDef]:
-        """Find the Strategy subclass in the AST."""
         for node in ast.walk(tree):
             if isinstance(node, ast.ClassDef) and self._is_strategy_class_heuristic(
                 node
@@ -273,20 +257,17 @@ class StrategyLoader:
         return None
 
     def _ast_type_to_str(self, node: ast.expr) -> Optional[str]:
-        """Convert an AST type annotation node to a string type name."""
         if isinstance(node, ast.Name):
             type_map = {
                 "str": "str",
                 "int": "int",
                 "float": "float",
                 "bool": "bool",
-                # Decimal resolved from import — treat as call
             }
             return type_map.get(node.id)
         if isinstance(node, ast.Constant) and node.value is None:
-            return "str"  # Optional types default
+            return "str"
         if isinstance(node, ast.Subscript):
-            # e.g., Optional[int], list[int] — extract inner name
             inner = node.slice
             if isinstance(inner, ast.Name):
                 return self._ast_type_to_str(inner)
@@ -295,10 +276,6 @@ class StrategyLoader:
         return None
 
     def _ast_default_to_value(self, node: ast.expr) -> tuple[any, str]:
-        """Convert an AST default value node to (python_value, type_str).
-
-        Returns (None, "unknown") if not a constant.
-        """
         if isinstance(node, ast.Constant):
             val = node.value
             if isinstance(val, bool):
@@ -313,7 +290,6 @@ class StrategyLoader:
                 return (None, "str")
             return (val, "unknown")
 
-        # Decimal(5) → ("5", "str") — decimal stored as string
         if isinstance(node, ast.Call):
             if isinstance(node.func, ast.Name) and node.func.id == "Decimal":
                 if node.args:
@@ -322,7 +298,6 @@ class StrategyLoader:
                         return (str(arg.value), "str")
                 return (None, "str")
 
-        # Unary minus: -1 → (-1, "int")
         if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
             if isinstance(node.operand, ast.Constant):
                 return (-node.operand.value, type(node.operand.value).__name__)
@@ -338,7 +313,6 @@ class StrategyLoader:
         params = []
 
         for node in config_class.body:
-            # Standard annotation with default: x: int = 5
             if isinstance(node, ast.AnnAssign) and node.value is not None:
                 name = self._get_assign_name(node)
                 if name is None:
@@ -347,7 +321,6 @@ class StrategyLoader:
                 type_str = self._ast_type_to_str(node.annotation)
                 default, inferred_type = self._ast_default_to_value(node.value)
 
-                # Prefer annotation type over inferred type
                 resolved_type = type_str or inferred_type
                 if resolved_type == "unknown":
                     resolved_type = "str"
@@ -357,11 +330,10 @@ class StrategyLoader:
                         "name": name,
                         "type": resolved_type,
                         "default": default,
-                        "description": self._extract_doc_for_field(name, config_class),
+                        "description": "",
                     }
                 )
 
-            # Assignment without annotation: x = 5 (also valid in some configs)
             elif isinstance(node, ast.Assign):
                 for target in node.targets:
                     if isinstance(target, ast.Name):
@@ -374,29 +346,18 @@ class StrategyLoader:
                                 if inferred_type != "unknown"
                                 else "str",
                                 "default": val,
-                                "description": self._extract_doc_for_field(
-                                    name, config_class
-                                ),
+                                "description": "",
                             }
                         )
 
         return params
 
     def _get_assign_name(self, node: ast.AnnAssign) -> Optional[str]:
-        """Extract the field name from an AnnAssign node."""
         if isinstance(node.target, ast.Name):
             return node.target.id
         if isinstance(node.target, ast.Attribute):
             return node.target.attr
         return None
-
-    def _extract_doc_for_field(
-        self, field_name: str, config_class: ast.ClassDef
-    ) -> str:
-        """Try to extract a docstring comment preceding or near a field."""
-        # For now, return empty — field-level docstrings are not standard in nautilus configs.
-        # Could be extended to parse inline comments.
-        return ""
 
     def _parse_strategy_metadata(self, file_path: Path) -> Optional[dict]:
         """
@@ -415,11 +376,9 @@ class StrategyLoader:
 
         strategy_cls = self._find_strategy_class(tree)
         if strategy_cls is None:
-            # If no Strategy subclass found, still try config-only discovery
             config_cls = self._find_config_class(tree)
             if config_cls is None:
                 return None
-            # Derive name from file stem or config class
             name = file_path.stem
             description = self._extract_class_docstring(config_cls)
         else:
@@ -434,7 +393,6 @@ class StrategyLoader:
         }
 
     def _extract_class_docstring(self, cls: ast.ClassDef) -> str:
-        """Extract the first line of a class docstring."""
         docstring = ast.get_docstring(cls)
         if docstring:
             return docstring.split("\n")[0].strip()
