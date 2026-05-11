@@ -1,5 +1,6 @@
-nautilus_trader[polymarket]
-fastapi
-uvicorn[standard]
-pandas
-python-multipart
+nautilus_trader[polymarket]==1.221.0
+fastapi==0.136.1
+uvicorn[standard]==0.46.0
+pandas==2.3.3
+pydantic==2.13.4
+python-multipart==0.0.28
