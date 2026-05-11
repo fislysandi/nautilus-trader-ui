@@ -248,15 +248,41 @@ export const useTradingStore = create<TradingStore>((set) => ({
     }),
 }));
 
+const STORE_KEY = 'nt-store';
+const MAX_STORE_SIZE = 4_000_000; // ~4MB limit (safety margin under 5MB quota)
+
 // Hydrate from localStorage on load
-const saved = localStorage.getItem('nt-store');
-if (saved) {
-  try { useTradingStore.setState(JSON.parse(saved)); } catch {}
+try {
+  const saved = localStorage.getItem(STORE_KEY);
+  if (saved) {
+    const parsed = JSON.parse(saved);
+    if (parsed && typeof parsed === 'object' && 'backtestRuns' in parsed) {
+      useTradingStore.setState(parsed);
+    }
+  }
+} catch (err) {
+  console.warn('Failed to restore store from localStorage:', err);
 }
 
-// Persist to localStorage on every change
+// Persist to localStorage on every change (with size check)
 useTradingStore.subscribe((state) => {
-  try { localStorage.setItem('nt-store', JSON.stringify(state)); } catch {}
+  try {
+    const serialized = JSON.stringify(state);
+    if (serialized.length > MAX_STORE_SIZE) {
+      console.warn(
+        `Store size ${(serialized.length / 1024 / 1024).toFixed(1)}MB exceeds safe limit. ` +
+        'Not persisting to localStorage.'
+      );
+      return;
+    }
+    localStorage.setItem(STORE_KEY, serialized);
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'QuotaExceededError') {
+      console.warn('localStorage quota exceeded. Store not persisted.');
+    } else {
+      console.warn('Failed to persist store:', err);
+    }
+  }
 });
 
 export default useTradingStore;
