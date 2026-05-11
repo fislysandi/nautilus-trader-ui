@@ -34,7 +34,7 @@ interface TradingStore {
   fetchBacktestResults: (runId: string) => Promise<void>;
   fetchBacktestTrades: (runId: string) => Promise<void>;
   deleteBacktest: (runId: string) => void;
-  pollBacktestUntilComplete: (runId: string, onProgress?: (pct: number) => void) => Promise<api.BacktestResults>;
+  pollBacktestUntilComplete: (runId: string, onProgress?: (pct: number) => void) => Promise<api.BacktestResults> & { cancel: () => void };
 
   // Strategy actions
   fetchStrategies: () => Promise<void>;
@@ -126,9 +126,21 @@ export const useTradingStore = create<TradingStore>((set) => ({
     });
   },
 
-  pollBacktestUntilComplete: async (runId, onProgress) => {
-    return new Promise<api.BacktestResults>((resolve, reject) => {
+  pollBacktestUntilComplete: (runId, onProgress) => {
+    let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const cancel = () => {
+      cancelled = true;
+      if (timeoutId !== null) clearTimeout(timeoutId);
+    };
+
+    const promise = new Promise<api.BacktestResults>((resolve, reject) => {
       const poll = async () => {
+        if (cancelled) {
+          reject(new Error('Poll cancelled'));
+          return;
+        }
         try {
           const status = await api.getBacktestStatus(runId);
           set((state) => ({
@@ -136,7 +148,7 @@ export const useTradingStore = create<TradingStore>((set) => ({
               ...state.backtestRuns,
               [runId]: { ...state.backtestRuns[runId], status },
             },
-}) as TradingStore);
+          }));
 
           if (onProgress) onProgress(status.progress);
 
@@ -148,12 +160,12 @@ export const useTradingStore = create<TradingStore>((set) => ({
                 ...state.backtestRuns,
                 [runId]: { ...state.backtestRuns[runId], results, trades },
               },
-}));
+            }));
             resolve(results);
           } else if (status.status === 'failed') {
             reject(new Error(status.error || 'Backtest failed'));
           } else {
-            setTimeout(poll, 1000);
+            timeoutId = setTimeout(poll, 1000);
           }
         } catch (err) {
           reject(err);
@@ -161,6 +173,8 @@ export const useTradingStore = create<TradingStore>((set) => ({
       };
       poll();
     });
+
+    return Object.assign(promise, { cancel });
   },
 
   fetchStrategies: async () => {
