@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import { useState } from 'react';
+import { useRef } from 'react';
 import Dashboard from './routes/Dashboard';
 import Backtest from './routes/Backtest';
 import BacktestHistory from './routes/BacktestHistory';
@@ -26,41 +26,19 @@ const NAV_ITEMS = [
   { label: 'Settings', path: '/settings', icon: 'settings' },
 ];
 
-function NavDrawer({ open }: { open: boolean }) {
+function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
-
-  return (
-    <md-navigation-drawer opened={open} style={{ '--md-navigation-drawer-width': '256px' } as React.CSSProperties}>
-      <div slot="header" style={{ padding: '16px', fontSize: '14px', color: 'var(--md-sys-color-on-surface-variant)' }}>
-        Navigation
-      </div>
-      {NAV_ITEMS.map(item => (
-        <md-list-item
-          key={item.path}
-          onClick={() => navigate(item.path)}
-          style={{
-            cursor: 'pointer',
-            background: location.pathname === item.path ? 'var(--md-sys-color-secondary-container)' : 'transparent',
-            color: location.pathname === item.path ? 'var(--md-sys-color-on-secondary-container)' : 'var(--md-sys-color-on-surface-variant)',
-            borderRadius: 'var(--md-sys-shape-corner-full)',
-            margin: '2px 8px',
-          }}
-        >
-          <md-icon slot="start">{item.icon}</md-icon>
-          <span slot="headline">{item.label}</span>
-        </md-list-item>
-      ))}
-    </md-navigation-drawer>
-  );
-}
-
-function AppLayout() {
-  const [drawerOpen, setDrawerOpen] = useState(true);
+  const drawerRef = useRef<HTMLElement & { opened: boolean }>(null);
+  const toggleDrawer = () => {
+    if (drawerRef.current) {
+      drawerRef.current.opened = !drawerRef.current.opened;
+    }
+  };
   return (
     <div className="app-layout">
       <header className="top-app-bar">
-        <button className="menu-button" onClick={() => setDrawerOpen(!drawerOpen)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '8px', color: 'var(--md-sys-color-on-surface)' }}>
+        <button className="menu-button" onClick={toggleDrawer} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '8px', color: 'var(--md-sys-color-on-surface)' }}>
           <md-icon>menu</md-icon>
         </button>
         <span className="top-app-bar-headline">NautilusTrader UI</span>
@@ -69,7 +47,30 @@ function AppLayout() {
         </div>
       </header>
       <div className="app-content">
-        <NavDrawer open={drawerOpen} />
+        <md-navigation-drawer ref={drawerRef} style={{
+          '--md-navigation-drawer-container-color': 'var(--md-sys-color-surface-container-low)',
+          '--md-navigation-drawer-width': '256px',
+        } as React.CSSProperties}>
+          <div slot="header" style={{ padding: '16px', fontSize: '14px', color: 'var(--md-sys-color-on-surface-variant)' }}>
+            Navigation
+          </div>
+          {NAV_ITEMS.map(item => (
+            <md-list-item
+              key={item.path}
+              onClick={() => navigate(item.path)}
+              style={{
+                cursor: 'pointer',
+                background: location.pathname === item.path ? 'var(--md-sys-color-secondary-container)' : 'transparent',
+                color: location.pathname === item.path ? 'var(--md-sys-color-on-secondary-container)' : 'var(--md-sys-color-on-surface-variant)',
+                borderRadius: 'var(--md-sys-shape-corner-full)',
+                margin: '2px 8px',
+              }}
+            >
+              <md-icon slot="start">{item.icon}</md-icon>
+              <span slot="headline">{item.label}</span>
+            </md-list-item>
+          ))}
+        </md-navigation-drawer>
         <main className="main-content">
           <ErrorBoundary>
           <Routes>
