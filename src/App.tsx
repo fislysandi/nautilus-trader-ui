@@ -60,9 +60,9 @@ function AppLayout() {
   return (
     <div className="app-layout">
       <header className="top-app-bar">
-        <md-icon-button className="menu-button" onClick={() => setDrawerOpen(!drawerOpen)}>
+        <button className="menu-button" onClick={() => setDrawerOpen(!drawerOpen)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '8px', color: 'var(--md-sys-color-on-surface)' }}>
           <md-icon>menu</md-icon>
-        </md-icon-button>
+        </button>
         <span className="top-app-bar-headline">NautilusTrader UI</span>
         <div className="top-app-bar-trailing">
           <span className="status-badge status-inactive">Offline</span>
