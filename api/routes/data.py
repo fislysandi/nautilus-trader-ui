@@ -31,6 +31,27 @@ INSTRUMENTS: dict[str, Instrument] = {
         lot_size=1.0,
         currency="USDC",
     ),
+    "BTC-USDT.BYBIT": Instrument(
+        id="BTC-USDT.BYBIT",
+        venue="BYBIT",
+        tick_size=0.1,
+        lot_size=0.001,
+        currency="USDT",
+    ),
+    "ETH-USDT.BYBIT": Instrument(
+        id="ETH-USDT.BYBIT",
+        venue="BYBIT",
+        tick_size=0.01,
+        lot_size=0.01,
+        currency="USDT",
+    ),
+    "SOL-USDT.BYBIT": Instrument(
+        id="SOL-USDT.BYBIT",
+        venue="BYBIT",
+        tick_size=0.01,
+        lot_size=0.01,
+        currency="USDT",
+    ),
 }
 
 
@@ -67,7 +88,7 @@ async def get_instrument(instrument_id: str) -> Instrument:
 )
 async def get_data_coverage(venue: str) -> dict:
     """Return available date ranges per instrument for the given venue."""
-    if venue.upper() != "POLYMARKET":
+    if venue.upper() not in ("POLYMARKET", "BYBIT"):
         raise HTTPException(
             status_code=404,
             detail=f"Venue '{venue}' not found",
