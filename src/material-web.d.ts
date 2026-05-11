@@ -1,9 +1,5 @@
 declare namespace JSX {
   interface IntrinsicElements {
-    'md-top-app-bar': React.DetailedHTMLProps<
-      React.HTMLAttributes<HTMLElement> & { headline?: string },
-      HTMLElement
-    >;
     'md-navigation-drawer': React.DetailedHTMLProps<
       React.HTMLAttributes<HTMLElement> & { open?: boolean },
       HTMLElement
@@ -13,6 +9,10 @@ declare namespace JSX {
       HTMLElement
     >;
     'md-icon': React.DetailedHTMLProps<
+      React.HTMLAttributes<HTMLElement>,
+      HTMLElement
+    >;
+    'md-icon-button': React.DetailedHTMLProps<
       React.HTMLAttributes<HTMLElement>,
       HTMLElement
     >;

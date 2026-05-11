@@ -44,7 +44,7 @@ function LiveMonitor() {
     { key: 'quantity', label: 'Qty', sortable: true, numeric: true },
     { key: 'entry_price', label: 'Entry', sortable: true, numeric: true },
     { key: 'current_price', label: 'Current', sortable: true, numeric: true },
-    { key: 'unrealized_pnl', label: 'Unrealized PnL', sortable: true, numeric: true,
+    { key: 'unrealized_pnl', label: 'Unrealized PnL', sortable: true, numeric: true, semantic: true,
       render: (val: unknown) => {
         const numVal = val as number;
         return (

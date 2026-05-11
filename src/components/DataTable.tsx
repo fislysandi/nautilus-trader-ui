@@ -15,6 +15,7 @@ interface Column<T> {
   sortable?: boolean;
   filterable?: boolean;
   numeric?: boolean;
+  semantic?: boolean;
   width?: string;
   render?: (value: unknown, row: T) => React.ReactNode;
 }
@@ -211,8 +212,8 @@ export default function DataTable<T>({
               {row.getVisibleCells().map((cell) => {
                 const col = columns.find((c) => c.key === cell.column.id);
                 const value = cell.getValue();
-                const isPositive = typeof value === 'number' && value > 0;
-                const isNegative = typeof value === 'number' && value < 0;
+                const isPositive = col?.semantic && typeof value === 'number' && value > 0;
+                const isNegative = col?.semantic && typeof value === 'number' && value < 0;
 
                 return (
                   <td
@@ -226,7 +227,7 @@ export default function DataTable<T>({
                         : undefined,
                     }}
                   >
-                    {String(cell.getValue())}
+                    {value != null ? String(value) : '—'}
                   </td>
                 );
               })}

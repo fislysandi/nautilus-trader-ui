@@ -81,6 +81,35 @@ html, body, #root {
   height: 100vh;
 }
 
+/* Top App Bar (replaces @material/web md-top-app-bar) */
+.top-app-bar {
+  display: flex;
+  align-items: center;
+  height: var(--top-app-bar-height);
+  padding: 0 16px;
+  background: var(--md-sys-color-surface);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.top-app-bar .menu-button {
+  margin-right: 8px;
+}
+
+.top-app-bar-headline {
+  flex: 1;
+  font-family: Inter, Roboto, sans-serif;
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 1.27;
+  color: var(--md-sys-color-on-surface);
+}
+
+.top-app-bar-trailing {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .app-content {
   display: flex;
   flex: 1;

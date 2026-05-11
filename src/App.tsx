@@ -7,7 +7,12 @@ import LiveMonitor from './routes/LiveMonitor';
 import Strategies from './routes/Strategies';
 import Data from './routes/Data';
 import Settings from './routes/Settings';
-import '@material/web/all.js';
+import NotFound from './routes/NotFound';
+import ErrorBoundary from './components/ErrorBoundary';
+import '@material/web/icon/icon.js';
+import '@material/web/iconbutton/icon-button.js';
+import '@material/web/list/list-item.js';
+import '@material/web/labs/navigationdrawer/navigation-drawer.js';
 import './theme.css';
 
 const NAV_ITEMS = [
@@ -52,18 +57,19 @@ function NavDrawer() {
 function AppLayout() {
   return (
     <div className="app-layout">
-      <md-top-app-bar
-        headline="NautilusTrader UI"
-        style={{ '--md-top-app-bar-container-color': 'var(--md-sys-color-surface)', '--md-top-app-bar-container-elevation': '0' } as React.CSSProperties}
-      >
-        <md-icon slot="navigationIcon" style={{ cursor: 'pointer' }}>menu</md-icon>
-        <div slot="trailingItems" style={{ display: 'flex', gap: '8px', alignItems: 'center', paddingRight: '16px' }}>
+      <header className="top-app-bar">
+        <md-icon-button className="menu-button">
+          <md-icon>menu</md-icon>
+        </md-icon-button>
+        <span className="top-app-bar-headline">NautilusTrader UI</span>
+        <div className="top-app-bar-trailing">
           <span className="status-badge status-inactive">Offline</span>
         </div>
-      </md-top-app-bar>
+      </header>
       <div className="app-content">
         <NavDrawer />
         <main className="main-content">
+          <ErrorBoundary>
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/backtest" element={<Backtest />} />
@@ -73,7 +79,9 @@ function AppLayout() {
             <Route path="/strategies" element={<Strategies />} />
             <Route path="/data" element={<Data />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
+        </ErrorBoundary>
         </main>
       </div>
     </div>
