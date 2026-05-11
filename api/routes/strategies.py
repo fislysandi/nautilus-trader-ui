@@ -61,7 +61,7 @@ class StrategySourceUpdate(BaseModel):
 async def update_strategy_source(name: str, body: StrategySourceUpdate):
     _ensure_strategy_exists(name)
     try:
-        result = loader.save_strategy(name, body.source)
+        loader.save_strategy(name, body.source)
         return {
             "message": "Strategy saved",
             "name": name,

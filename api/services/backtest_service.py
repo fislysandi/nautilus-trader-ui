@@ -310,14 +310,10 @@ class BacktestService:
             f"No real data found for {instrument_id_str}, generating synthetic data...",
         )
         try:
-            from nautilus_trader.model.data import TradeTick
-            from nautilus_trader.model.identifiers import TradeId
-            from nautilus_trader.model.enums import OrderSide, AssetClass
+            from nautilus_trader.model.enums import AssetClass
             from nautilus_trader.model.objects import Price, Quantity
             from nautilus_trader.model.instruments import BinaryOption
-            from nautilus_trader.model.identifiers import Symbol, Venue
-            import random
-            import pandas as pd
+            from nautilus_trader.model.identifiers import Symbol
 
             # Create instrument matching the strategy's instrument_id
             strategy_inst_id = InstrumentId.from_str(instrument_id_str)
