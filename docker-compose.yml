@@ -1,4 +1,26 @@
 services:
+  backend:
+    build:
+      context: ../nautilus-trader-ui-backend
+      dockerfile: Dockerfile
+    container_name: nautilustrader-backend
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      - PYTHONPATH=/app
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ../nautilus-trader-ui-frontend
+      dockerfile: Dockerfile
+    container_name: nautilustrader-frontend
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
   jupyter:
     build:
       context: .
