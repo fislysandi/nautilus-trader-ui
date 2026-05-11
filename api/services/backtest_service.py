@@ -393,14 +393,14 @@ class BacktestService:
             )
             engine.add_instrument(instrument)
 
-            # Generate 500 synthetic OrderBookDelta events
+            # Generate 2000 synthetic OrderBookDelta events
             base_ns = pd.Timestamp("2025-01-01", tz="UTC").value
-            num_deltas = 500
+            num_deltas = 2000
             price_val = 0.50
             deltas = []
 
             for i in range(num_deltas):
-                price_val += random.uniform(-0.02, 0.02)
+                price_val += random.uniform(-0.03, 0.03)
                 price_val = max(0.01, min(0.99, price_val))
                 delta = OrderBookDelta(
                     instrument_id=strategy_inst_id,
