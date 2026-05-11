@@ -45,6 +45,7 @@ class BacktestService:
         self._runs: dict[str, dict] = {}
         self._sweeps: dict[str, dict] = {}
         self._logs: dict[str, list[str]] = {}
+        self._tasks: dict[str, asyncio.Task] = {}
 
     def _log(self, run_id: str, message: str):
         if run_id not in self._run_log_counters:
@@ -91,7 +92,8 @@ class BacktestService:
                 "config": config,
                 "error": None,
             }
-        asyncio.create_task(self._execute_backtest(run_id, config))
+        task = asyncio.create_task(self._execute_backtest(run_id, config))
+        self._tasks[run_id] = task
         return run_id
 
     async def _execute_backtest(self, run_id: str, config: dict):
@@ -222,6 +224,14 @@ class BacktestService:
             trades = len(results.get("trades", []))
             self._log(run_id, f"Backtest complete. Sharpe: {sharpe}, Trades: {trades}")
 
+        except asyncio.CancelledError:
+            self._log(run_id, "Backtest cancelled by user")
+            if self._db:
+                await self._db.update_run_status(run_id, "cancelled", 0.0)
+            else:
+                self._runs[run_id]["status"] = "cancelled"
+                self._runs[run_id]["progress"] = 0.0
+            return
         except Exception as e:
             tb = traceback.format_exc()
             self._log(run_id, f"ERROR: {e}")
@@ -893,13 +903,39 @@ class BacktestService:
             raise KeyError(f"Backtest run {run_id} not found")
         return run.get("fills", [])
 
+    async def cancel_backtest(self, run_id: str):
+        """Cancel a running backtest by cancelling its asyncio task."""
+        task = self._tasks.pop(run_id, None)
+        if task is not None and not task.done():
+            task.cancel()
+            try:
+                await task
+            except (asyncio.CancelledError, Exception):
+                pass
+        if self._db:
+            try:
+                run = await self._db.get_run(run_id)
+                if run and run.status in ("pending", "running"):
+                    await self._db.update_run_status(run_id, "cancelled", 0.0)
+            except Exception:
+                pass
+        elif run_id in self._runs and self._runs[run_id].get("status") in (
+            "pending",
+            "running",
+        ):
+            self._runs[run_id]["status"] = "cancelled"
+            self._runs[run_id]["progress"] = 0.0
+
     async def delete_run(self, run_id: str):
+        await self.cancel_backtest(run_id)
         if self._db:
             await self._db.delete_run(run_id)
         elif run_id in self._runs:
             del self._runs[run_id]
         if run_id in self._logs:
             del self._logs[run_id]
+        if run_id in self._tasks:
+            del self._tasks[run_id]
         self._run_log_counters.pop(run_id, None)
 
     async def run_sweep(self, sweep_config: dict) -> str:

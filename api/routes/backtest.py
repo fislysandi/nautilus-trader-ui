@@ -107,13 +107,27 @@ async def get_backtest_fills(run_id: str) -> list[dict]:
         raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
 
 
+@router.post(
+    "/{run_id}/cancel",
+    status_code=200,
+    summary="Cancel a running backtest",
+)
+async def cancel_backtest(run_id: str) -> dict:
+    """Cancel a running backtest by cancelling its background task."""
+    try:
+        await service.cancel_backtest(run_id)
+        return {"run_id": run_id, "status": "cancelled"}
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
+
+
 @router.delete(
     "/{run_id}",
     status_code=204,
     summary="Delete a backtest run",
 )
 async def delete_backtest(run_id: str):
-    """Delete backtest results from memory."""
+    """Delete backtest results from memory (also cancels if running)."""
     try:
         _ = await service.get_status(run_id)  # raises KeyError if not found
         await service.delete_run(run_id)
