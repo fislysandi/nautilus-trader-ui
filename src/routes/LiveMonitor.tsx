@@ -1,9 +1,17 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useTradingStore } from '../stores/trading';
 import DataTable from '../components/DataTable';
 import StatusBadge from '../components/StatusBadge';
 
+const ACCOUNTS = [
+  { id: 'virtual', label: 'Virtual / Paper', icon: '🛡️' },
+  { id: 'polymarket', label: 'Polymarket', icon: '🔮' },
+  { id: 'bybit', label: 'Bybit', icon: '📊' },
+  { id: 'hyperliquid', label: 'Hyperliquid', icon: '⚡' },
+];
+
 function LiveMonitor() {
+  const [selectedAccount, setSelectedAccount] = useState('virtual');
   const {
     live,
     fetchLiveStatus, fetchLivePositions, fetchLiveOrders, fetchLiveAccount,
@@ -68,7 +76,27 @@ function LiveMonitor() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-        <h1 style={{ fontSize: '28px', fontWeight: 600 }}>Live Trading</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <h1 style={{ fontSize: '28px', fontWeight: 600 }}>Live Trading</h1>
+          <select
+            value={selectedAccount}
+            onChange={(e) => setSelectedAccount(e.target.value)}
+            style={{
+              padding: '6px 12px', fontSize: '13px',
+              background: 'var(--md-sys-color-surface-container-high)',
+              color: 'var(--md-sys-color-on-surface)',
+              border: '1px solid var(--md-sys-color-outline)',
+              borderRadius: 'var(--md-sys-shape-corner-extra-small)',
+              fontFamily: 'Inter, sans-serif', cursor: 'pointer',
+            }}
+          >
+            {ACCOUNTS.map((acc) => (
+              <option key={acc.id} value={acc.id}>
+                {acc.icon} {acc.label}
+              </option>
+            ))}
+          </select>
+        </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <StatusBadge status={isRunning ? 'active' : 'inactive'} label={isRunning ? 'Running' : 'Stopped'} pulse={isRunning} />
           {isRunning ? (
@@ -81,6 +109,12 @@ function LiveMonitor() {
       </div>
 
       <div className="chart-container" style={{ marginBottom: '16px', display: 'flex', gap: '32px', alignItems: 'center' }}>
+        <div>
+          <span className="metric-label">Account</span>
+          <div style={{ fontSize: '16px', fontWeight: 500, marginTop: '2px' }}>
+            {ACCOUNTS.find(a => a.id === selectedAccount)?.icon} {ACCOUNTS.find(a => a.id === selectedAccount)?.label}
+          </div>
+        </div>
         <div>
           <span className="metric-label">Uptime</span>
           <div style={{ fontSize: '16px', fontWeight: 500, marginTop: '2px' }}>
