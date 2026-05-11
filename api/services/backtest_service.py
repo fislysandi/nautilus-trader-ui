@@ -309,7 +309,6 @@ class BacktestService:
         except (NameError, AttributeError):
             pass
         try:
-            from nautilus_trader.test_kit.providers import TestInstrumentProvider
             from nautilus_trader.model.data import TradeTick
             from nautilus_trader.model.identifiers import TradeId
             from nautilus_trader.model.enums import OrderSide, AssetClass
@@ -348,7 +347,7 @@ class BacktestService:
             )
             engine.add_instrument(instrument)
 
-            base_ns = 1700000000000000000
+            base_ns = pd.Timestamp("2025-01-01", tz="UTC").value
             price_val = 0.50
             num_ticks = 100
             ticks = []
