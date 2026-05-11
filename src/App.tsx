@@ -31,7 +31,7 @@ function NavDrawer({ open }: { open: boolean }) {
   const location = useLocation();
 
   return (
-    <md-navigation-drawer open={open} style={{ '--md-navigation-drawer-width': '256px' } as React.CSSProperties}>
+    <md-navigation-drawer opened={open} style={{ '--md-navigation-drawer-width': '256px' } as React.CSSProperties}>
       <div slot="header" style={{ padding: '16px', fontSize: '14px', color: 'var(--md-sys-color-on-surface-variant)' }}>
         Navigation
       </div>
