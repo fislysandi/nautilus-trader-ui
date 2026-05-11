@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { useTradingStore } from '../stores/trading';
 import MetricCard from '../components/MetricCard';
 import DataTable from '../components/DataTable';
@@ -40,31 +40,125 @@ function Dashboard() {
   );
   const latestRun = completedRuns[completedRuns.length - 1];
 
-  if (strategiesLoading) {
-    return (
-      <div>
-        <h1 style={{ fontSize: '28px', fontWeight: 600, marginBottom: '24px' }}>Dashboard</h1>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
-          <MetricCard label="Sharpe Ratio" value="" loading />
-          <MetricCard label="Total PnL" value="" loading />
-          <MetricCard label="Win Rate" value="" loading />
-          <MetricCard label="Max Drawdown" value="" loading />
-        </div>
-        <div className="chart-container" style={{ marginBottom: '24px' }}>
-          <EquityChart data={[]} title="Equity Curve" height={320} loading />
-        </div>
-        <div className="chart-container">
-          <h2 style={{ fontSize: '16px', fontWeight: 500, marginBottom: '12px' }}>Trades</h2>
-          <DataTable columns={tradeColumns} data={[]} loading />
-        </div>
-      </div>
-    );
-  }
+  const fetchBacktestStatus = useTradingStore((s) => s.fetchBacktestStatus);
+  const pollRef = useRef<ReturnType<typeof setInterval>>();
 
-  if (!latestRun) {
-    return (
-      <div>
-        <h1 style={{ fontSize: '28px', fontWeight: 600, marginBottom: '24px' }}>Dashboard</h1>
+  const runningRuns = Object.values(backtestRuns).filter(
+    (r) => r.status?.status === 'pending' || r.status?.status === 'running'
+  );
+
+  const pollRunning = useCallback(() => {
+    runningRuns.forEach((r) => fetchBacktestStatus(r.runId));
+  }, [runningRuns, fetchBacktestStatus]);
+
+  useEffect(() => {
+    if (runningRuns.length > 0) {
+      pollRef.current = setInterval(pollRunning, 2000);
+      return () => clearInterval(pollRef.current);
+    }
+  }, [runningRuns.length, pollRunning]);
+
+  const { metrics, equity_curve } = latestRun?.results ?? { metrics: null, equity_curve: null };
+
+  const metricCards = latestRun ? [
+    { label: 'Sharpe Ratio', value: metrics?.sharpe_ratio?.toFixed(2) ?? '—' },
+    { label: 'Total PnL', value: metrics?.total_pnl != null ? `$${metrics.total_pnl.toFixed(2)}` : '—' },
+    { label: 'Win Rate', value: metrics?.win_rate != null ? `${(metrics.win_rate * 100).toFixed(1)}%` : '—' },
+    { label: 'Max Drawdown', value: metrics?.max_drawdown != null ? `${(metrics.max_drawdown * 100).toFixed(1)}%` : '—' },
+  ] : [];
+
+  return (
+    <div>
+      <h1 style={{ fontSize: '28px', fontWeight: 600, marginBottom: '24px' }}>Dashboard</h1>
+
+      {/* Running Backtests */}
+      {runningRuns.length > 0 && (
+        <div className="chart-container" style={{ marginBottom: '24px' }}>
+          <h2 style={{ fontSize: '16px', fontWeight: 500, marginBottom: '12px' }}>
+            Running Backtests ({runningRuns.length})
+          </h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {runningRuns.map((run) => (
+              <div key={run.runId}
+                style={{
+                  background: 'var(--md-sys-color-surface-container)',
+                  borderRadius: '8px', padding: '12px 16px',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                  <div>
+                    <span style={{ fontWeight: 500, fontSize: '14px' }}>
+                      {run.config.strategy_name || 'Strategy'}
+                    </span>
+                    <span style={{ fontSize: '12px', color: 'var(--md-sys-color-on-surface-variant)', marginLeft: '8px' }}>
+                      {run.config.instrument_id}
+                    </span>
+                  </div>
+                  <span className="status-badge status-active" style={{ fontSize: '11px' }}>
+                    {run.status?.status === 'running' ? 'Running' : 'Queued'}
+                  </span>
+                </div>
+                <div style={{ height: '4px', background: 'var(--md-sys-color-surface-container-high)', borderRadius: '4px', overflow: 'hidden' }}>
+                  <div style={{
+                    height: '100%',
+                    width: `${(run.status?.progress ?? 0) * 100}%`,
+                    background: 'var(--md-sys-color-primary)',
+                    borderRadius: '4px',
+                    transition: 'width 0.5s ease',
+                  }} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--md-sys-color-on-surface-variant)' }}>
+                    {run.runId.slice(0, 8)}
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'var(--md-sys-color-on-surface-variant)' }}>
+                    {Math.round((run.status?.progress ?? 0) * 100)}%
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Latest Results */}
+      {latestRun ? (
+        <>
+          <div className="dashboard-metrics" style={{
+            display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
+            gap: '16px', marginBottom: '24px',
+          }}>
+            {metricCards.map((m) => (
+              <MetricCard key={m.label} label={m.label} value={m.value} />
+            ))}
+          </div>
+
+          <div className="chart-container" style={{ marginBottom: '24px' }}>
+            <EquityChart data={equity_curve || []} title="Equity Curve" height={320} />
+          </div>
+
+          <div className="chart-container">
+            <h2 style={{ fontSize: '16px', fontWeight: 500, marginBottom: '12px' }}>Trades</h2>
+            <DataTable columns={tradeColumns} data={latestRun?.trades || []} />
+          </div>
+        </>
+      ) : strategiesLoading ? (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
+            <MetricCard label="Sharpe Ratio" value="" loading />
+            <MetricCard label="Total PnL" value="" loading />
+            <MetricCard label="Win Rate" value="" loading />
+            <MetricCard label="Max Drawdown" value="" loading />
+          </div>
+          <div className="chart-container" style={{ marginBottom: '24px' }}>
+            <EquityChart data={[]} title="Equity Curve" height={320} loading />
+          </div>
+          <div className="chart-container">
+            <h2 style={{ fontSize: '16px', fontWeight: 500, marginBottom: '12px' }}>Trades</h2>
+            <DataTable columns={tradeColumns} data={[]} loading />
+          </div>
+        </>
+      ) : (
         <div className="chart-container" style={{ textAlign: 'center', padding: '48px' }}>
           <p style={{ fontSize: '16px', color: 'var(--md-sys-color-on-surface-variant)' }}>
             No backtest results yet. Go to <strong>Backtest</strong> to run your first strategy.
@@ -80,42 +174,7 @@ function Dashboard() {
             </p>
           )}
         </div>
-      </div>
-    );
-  }
-
-  const { metrics, equity_curve } = latestRun.results!;
-
-  const metricCards = [
-    { label: 'Sharpe Ratio', value: metrics.sharpe_ratio?.toFixed(2) ?? '—' },
-    { label: 'Total PnL', value: metrics.total_pnl != null ? `$${metrics.total_pnl.toFixed(2)}` : '—' },
-    { label: 'Win Rate', value: metrics.win_rate != null ? `${(metrics.win_rate * 100).toFixed(1)}%` : '—' },
-    { label: 'Max Drawdown', value: metrics.max_drawdown != null ? `${(metrics.max_drawdown * 100).toFixed(1)}%` : '—' },
-  ];
-
-  return (
-    <div>
-      <h1 style={{ fontSize: '28px', fontWeight: 600, marginBottom: '24px' }}>Dashboard</h1>
-
-      <div className="dashboard-metrics" style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(4, 1fr)',
-        gap: '16px',
-        marginBottom: '24px',
-      }}>
-        {metricCards.map((m) => (
-          <MetricCard key={m.label} label={m.label} value={m.value} />
-        ))}
-      </div>
-
-      <div className="chart-container" style={{ marginBottom: '24px' }}>
-        <EquityChart data={equity_curve || []} title="Equity Curve" height={320} />
-      </div>
-
-      <div className="chart-container">
-        <h2 style={{ fontSize: '16px', fontWeight: 500, marginBottom: '12px' }}>Trades</h2>
-        <DataTable columns={tradeColumns} data={latestRun.trades || []} />
-      </div>
+      )}
 
       <style>{`
         @media (max-width: 1280px) {
