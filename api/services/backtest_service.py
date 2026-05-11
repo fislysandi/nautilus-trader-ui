@@ -663,7 +663,26 @@ class BacktestService:
             fills_df = engine.trader.generate_fills_report()
             if fills_df.empty:
                 return []
-            return self._df_to_records(fills_df)
+            records = self._df_to_records(fills_df)
+            # Map nautilus_trader column names to our schema
+            mapped = []
+            for r in records:
+                ts = r.get("ts_event", "")
+                if hasattr(ts, "isoformat"):
+                    ts = ts.isoformat()
+                mapped.append(
+                    {
+                        "entry_time": str(ts),
+                        "side": str(r.get("order_side", "")),
+                        "size": float(r.get("last_qty", 0) or 0),
+                        "entry_price": float(r.get("last_px", 0) or 0),
+                        "pnl": None,
+                        "exit_price": None,
+                        "exit_time": None,
+                        "instrument_id": str(r.get("instrument_id", "")),
+                    }
+                )
+            return mapped
         except Exception:
             return []
 
@@ -673,7 +692,20 @@ class BacktestService:
             positions_df = engine.trader.generate_positions_report()
             if positions_df.empty:
                 return []
-            return self._df_to_records(positions_df)
+            records = self._df_to_records(positions_df)
+            mapped = []
+            for r in records:
+                mapped.append(
+                    {
+                        "instrument_id": str(r.get("instrument_id", "")),
+                        "side": str(r.get("entry", "")),
+                        "quantity": float(r.get("quantity", 0) or 0),
+                        "entry_price": float(r.get("avg_px_open", 0) or 0),
+                        "current_price": float(r.get("avg_px_close", 0) or 0),
+                        "unrealized_pnl": float(r.get("realized_pnl", "-0") or "0"),
+                    }
+                )
+            return mapped
         except Exception:
             return []
 
