@@ -133,22 +133,14 @@ class BacktestService:
             self._runs[run_id]["progress"] = 0.4
 
             self._log(run_id, "Adding strategy...")
-            import functools
 
-            original_init = strategy_class.__init__
+            # Subclass strategy to bypass Cython Actor.config read-only attribute
+            # breakouter's self.config = config fails after super().__init__(config)
+            class _CompatibleStrategy(strategy_class):
+                def __init__(_self, _config):
+                    super(_CompatibleStrategy, _self).__init__(_config)
 
-            @functools.wraps(original_init)
-            def _patched_strategy_init(self, *args, **kwargs):
-                try:
-                    original_init(self, *args, **kwargs)
-                except AttributeError as e:
-                    if "config" in str(e) and "not writable" in str(e):
-                        pass  # config already set by super().__init__
-                    else:
-                        raise
-
-            strategy_class.__init__ = _patched_strategy_init
-            strategy = strategy_class(config=strategy_config)
+            strategy = _CompatibleStrategy(config=strategy_config)
             engine.add_strategy(strategy)
             self._runs[run_id]["progress"] = 0.5
 
