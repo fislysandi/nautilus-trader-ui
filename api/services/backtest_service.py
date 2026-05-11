@@ -133,6 +133,21 @@ class BacktestService:
             self._runs[run_id]["progress"] = 0.4
 
             self._log(run_id, "Adding strategy...")
+            import functools
+
+            original_init = strategy_class.__init__
+
+            @functools.wraps(original_init)
+            def _patched_strategy_init(self, *args, **kwargs):
+                try:
+                    original_init(self, *args, **kwargs)
+                except AttributeError as e:
+                    if "config" in str(e) and "not writable" in str(e):
+                        object.__setattr__(self, "config", kwargs.get("config"))
+                    else:
+                        raise
+
+            strategy_class.__init__ = _patched_strategy_init
             strategy = strategy_class(config=strategy_config)
             engine.add_strategy(strategy)
             self._runs[run_id]["progress"] = 0.5
