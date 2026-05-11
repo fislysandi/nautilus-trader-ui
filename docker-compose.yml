@@ -1,0 +1,38 @@
+services:
+  jupyter:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: nautilustrader-poly:latest
+    container_name: nautilustrader-jupyter
+    ports:
+      - "127.0.0.1:8888:8888"
+    volumes:
+      - ./strategies:/home/jovyan/strategies
+      - ./data:/home/jovyan/data
+    environment:
+      - JUPYTER_TOKEN=nt
+    command:
+      - jupyter
+      - lab
+      - --ip=0.0.0.0
+      - --port=8888
+      - --no-browser
+      - --NotebookApp.token=nt
+      - --NotebookApp.disable_check_xsrf=True
+    depends_on:
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: nautilustrader-redis
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 2s
+      retries: 5
+    restart: unless-stopped
