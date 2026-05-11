@@ -41,7 +41,6 @@ class BreakoutStrategy(Strategy):
 
     def __init__(self, config: BreakoutConfig):
         super().__init__(config)
-        self.config = config
         self.instrument_id = InstrumentId.from_str(config.instrument_id)
 
         self.prices = deque(maxlen=config.window)
@@ -62,7 +61,11 @@ class BreakoutStrategy(Strategy):
             return
 
         book = self.cache.order_book(self.instrument_id)
-        if book is None or book.best_bid_price() is None or book.best_ask_price() is None:
+        if (
+            book is None
+            or book.best_bid_price() is None
+            or book.best_ask_price() is None
+        ):
             return
 
         bid = float(book.best_bid_price())
@@ -81,16 +84,21 @@ class BreakoutStrategy(Strategy):
 
         mean = sum(self.prices) / len(self.prices)
         variance = sum((p - mean) ** 2 for p in self.prices) / len(self.prices)
-        std = variance ** 0.5
+        std = variance**0.5
 
-        breakout_level = mean + self.config.breakout_std * std + self.config.breakout_buffer
+        breakout_level = (
+            mean + self.config.breakout_std * std + self.config.breakout_buffer
+        )
 
         if not self._in_position and self.cooldown == 0:
             if mid >= breakout_level and bid <= self.config.max_entry_price:
                 self._enter(mid)
                 return
 
-        if self._in_position and self.holding_periods >= self.config.min_holding_periods:
+        if (
+            self._in_position
+            and self.holding_periods >= self.config.min_holding_periods
+        ):
             if self._entry_price and mid >= self._entry_price + self.config.take_profit:
                 self._exit()
                 return
