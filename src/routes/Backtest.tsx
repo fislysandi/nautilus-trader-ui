@@ -41,10 +41,18 @@ function Backtest() {
   const [logs, setLogs] = useState<string[]>([]);
   const [showLogs, setShowLogs] = useState(false);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const sweepIntervalRef = useRef<ReturnType<typeof setInterval>>();
+  const cancelPollRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     fetchStrategies();
   }, [fetchStrategies]);
+
+  useEffect(() => {
+    return () => {
+      cancelPollRef.current?.();
+    };
+  }, []);
 
   useEffect(() => {
     if (!selectedStrategy) {
@@ -68,6 +76,14 @@ function Backtest() {
       }
     });
   }, [selectedStrategy]);
+
+  useEffect(() => {
+    return () => {
+      if (sweepIntervalRef.current) {
+        clearInterval(sweepIntervalRef.current);
+      }
+    };
+  }, []);
 
   function validateForm(): boolean {
     const errors: Record<string, string> = {};
@@ -115,9 +131,12 @@ function Backtest() {
       }, 500);
 
       try {
-        await pollBacktestUntilComplete(runId, setProgress);
+        const pollResult = pollBacktestUntilComplete(runId, setProgress);
+        cancelPollRef.current = pollResult.cancel;
+        await pollResult;
         setView('results');
       } finally {
+        cancelPollRef.current = null;
         clearInterval(logInterval);
       }
     } catch (err) {
@@ -162,17 +181,28 @@ function Backtest() {
 
       const id = response.sweep_id;
 
-      const poll = setInterval(async () => {
+      const startTime = Date.now();
+      const MAX_SWEEP_DURATION = 300000;
+      sweepIntervalRef.current = setInterval(async () => {
+        if (Date.now() - startTime > MAX_SWEEP_DURATION) {
+          clearInterval(sweepIntervalRef.current!);
+          sweepIntervalRef.current = undefined;
+          setView('config');
+          setError('Sweep timed out after 5 minutes');
+          return;
+        }
         try {
           const sweepData = await getSweepResults(id);
           if (sweepData.results && sweepData.results.length > 0) {
             setSweepResults(sweepData.results);
             setView('results');
-            clearInterval(poll);
+            clearInterval(sweepIntervalRef.current!);
+            sweepIntervalRef.current = undefined;
           } else if (sweepData.status === 'completed') {
             setSweepResults(sweepData.results);
             setView('results');
-            clearInterval(poll);
+            clearInterval(sweepIntervalRef.current!);
+            sweepIntervalRef.current = undefined;
           }
         } catch {
           void 0;
